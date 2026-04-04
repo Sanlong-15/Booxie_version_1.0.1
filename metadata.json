@@ -1,0 +1,9 @@
+{
+  "name": "Booxie version 1.0.1",
+  "description": "Build a mobile platform called Booxie.\nBooxie is a second-hand book marketplace where students and parents can:\nBuy books\nSell books\nDonate books\nChat with sellers\nEarn reward points\nScan books using AI\nReceive AI book recommendations\nJoin a community for book discussions",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

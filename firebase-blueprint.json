@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user in the Booxie marketplace.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "User's display name" },
+        "email": { "type": "string", "description": "User's email address" },
+        "photoURL": { "type": "string", "description": "User's profile picture URL" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User role" },
+        "rewardPoints": { "type": "number", "description": "Points earned from donations and sales" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role", "rewardPoints", "createdAt"]
+    },
+    "BookListing": {
+      "title": "BookListing",
+      "description": "A book listed for sale or donation.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number", "description": "Price in local currency. 0 if donation." },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "sold", "donated", "hidden"] },
+        "condition": { "type": "string", "enum": ["new", "like-new", "good", "fair", "poor"] },
+        "type": { "type": "string", "enum": ["sale", "donation"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "author", "price", "sellerId", "sellerName", "status", "condition", "type", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A chat conversation between two users.",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "bookId": { "type": "string" },
+        "bookTitle": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["participants", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A message within a conversation.",
+      "type": "object",
+      "properties": {
+        "conversationId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["conversationId", "senderId", "text", "createdAt"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "A post in the community hub.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "authorName", "content", "likesCount", "commentsCount", "createdAt"]
+    },
+    "CommunityComment": {
+      "title": "CommunityComment",
+      "description": "A comment on a community post.",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["postId", "authorId", "authorName", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/books/{bookId}": {
+      "schema": { "$ref": "#/entities/BookListing" },
+      "description": "Book listings"
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Chat conversations"
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Messages in a conversation"
+    },
+    "/communityPosts/{postId}": {
+      "schema": { "$ref": "#/entities/CommunityPost" },
+      "description": "Community posts"
+    },
+    "/communityPosts/{postId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/CommunityComment" },
+      "description": "Comments on community posts"
+    }
+  }
+}
