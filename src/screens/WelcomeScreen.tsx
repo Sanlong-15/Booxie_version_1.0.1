@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import BooxieLogo from '../components/BooxieLogo';
+import { signInAnonymously } from '../firebase';
 
 export default function WelcomeScreen() {
   const navigate = useNavigate();
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
+
+  const handleGuestContinue = async () => {
+    try {
+      setIsGuestLoading(true);
+      await signInAnonymously();
+      navigate('/');
+    } catch (error) {
+      console.error("Failed to sign in as guest", error);
+      // Fallback to old behavior if anonymous auth fails (e.g. not enabled in console)
+      localStorage.setItem('guestMode', 'true');
+      navigate('/');
+    } finally {
+      setIsGuestLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F4FBF7] flex flex-col items-center justify-center p-6 text-center">
@@ -49,13 +66,11 @@ export default function WelcomeScreen() {
         </button>
 
         <button
-          onClick={() => {
-            localStorage.setItem('guestMode', 'true');
-            navigate('/');
-          }}
-          className="w-full text-gray-500 py-2 font-medium text-sm hover:text-gray-700 transition-colors"
+          onClick={handleGuestContinue}
+          disabled={isGuestLoading}
+          className="w-full text-gray-500 py-2 font-medium text-sm hover:text-gray-700 transition-colors disabled:opacity-50"
         >
-          Continue as Guest
+          {isGuestLoading ? 'Connecting...' : 'Continue as Guest'}
         </button>
       </motion.div>
     </div>

@@ -5,41 +5,46 @@ import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 
 interface AuthContextType {
   user: User | null;
+  profile: any | null;
   loading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ user: null, profile: null, loading: true });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Ensure user document exists (only if it doesn't already)
         try {
           const userRef = doc(db, 'users', firebaseUser.uid);
-          const userSnap = await getDoc(userRef);
+          let userSnap = await getDoc(userRef);
           
           if (!userSnap.exists()) {
-            await setDoc(userRef, {
+            const newProfile = {
               uid: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Anonymous User',
+              name: firebaseUser.displayName || 'Guest User',
               email: firebaseUser.email || '',
               photoURL: firebaseUser.photoURL || '',
               role: 'user',
               rewardPoints: 0,
               createdAt: serverTimestamp()
-            });
+            };
+            await setDoc(userRef, newProfile);
+            setProfile(newProfile);
+          } else {
+            setProfile(userSnap.data());
           }
         } catch (error) {
-          // Ignore errors if document already exists or other issues (handled in signUpWithEmail)
           console.warn("AuthContext: Error checking/creating user doc", error);
         }
         setUser(firebaseUser);
       } else {
         setUser(null);
+        setProfile(null);
       }
       setLoading(false);
     });
@@ -48,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, profile, loading }}>
       {children}
     </AuthContext.Provider>
   );

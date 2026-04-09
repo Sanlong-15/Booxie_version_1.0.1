@@ -6,7 +6,8 @@ import {
   signOut, 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  signInAnonymously as firebaseSignInAnonymously
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -110,6 +111,16 @@ export const logOut = async () => {
     await signOut(auth);
   } catch (error) {
     console.error("Error signing out", error);
+    throw error;
+  }
+};
+
+export const signInAnonymously = async () => {
+  try {
+    const result = await firebaseSignInAnonymously(auth);
+    return result.user;
+  } catch (error) {
+    console.error("Error signing in anonymously", error);
     throw error;
   }
 };

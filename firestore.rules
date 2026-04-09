@@ -19,7 +19,7 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.uid is string &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             isValidEmail(data.email) &&
+             (data.email == "" || isValidEmail(data.email)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
              (!('role' in data) || data.role in ['user', 'admin']);
     }
@@ -48,7 +48,11 @@ service cloud.firestore {
     match /books/{bookId} {
       allow read: if true;
       allow create: if isAuthenticated() && isValidBook(request.resource.data);
-      allow update: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin()) && isValidBook(request.resource.data);
+      allow update: if isAuthenticated() && (
+        resource.data.sellerId == request.auth.uid || 
+        isAdmin() || 
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'sold')
+      ) && isValidBook(request.resource.data);
       allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
     }
     match /communityPosts/{postId} {

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import BooxieLogo from './BooxieLogo';
 
 export default function Layout() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -45,7 +45,7 @@ export default function Layout() {
                 className="flex items-center gap-1 bg-[#FFF8E7] px-2 py-1 rounded-full cursor-pointer hover:bg-[#FFE8B3] transition-colors"
               >
                 <Star className="w-3 h-3 text-[#FFB800] fill-[#FFB800]" />
-                <span className="text-xs font-bold text-[#FFB800]">1250 points</span>
+                <span className="text-xs font-bold text-[#FFB800]">{profile?.rewardPoints || 0} points</span>
               </div>
             )}
             

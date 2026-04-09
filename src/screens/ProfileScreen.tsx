@@ -7,13 +7,13 @@ import { Settings, LogOut, Package, Heart, Star, Award, MessageCircle } from 'lu
 const ORDER_TABS = ['Orders', 'Listing', 'Coupon'];
 
 export default function ProfileScreen() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Orders');
 
   const handleLogout = async () => {
     await logOut();
-    navigate('/login');
+    navigate('/welcome');
   };
 
   return (
@@ -41,18 +41,18 @@ export default function ProfileScreen() {
               onClick={() => navigate('/edit-profile')}
               className="w-16 h-16 rounded-full overflow-hidden border-2 border-[#006A4E] shrink-0"
             >
-              {user?.photoURL ? (
-                <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              {profile?.photoURL || user?.photoURL ? (
+                <img src={profile?.photoURL || user?.photoURL || ''} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
                 <div className="w-full h-full bg-[#006A4E] flex items-center justify-center text-white text-2xl font-bold">
-                  {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'S'}
+                  {profile?.name ? profile.name.charAt(0).toUpperCase() : (user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'G')}
                 </div>
               )}
             </button>
             <div>
-              <h2 className="text-base font-bold text-gray-900">{user?.displayName || 'Huy Sanlong'}</h2>
-              <p className="text-xs text-gray-500">{user?.email || 'huysanlong99@gmail.com'}</p>
-              <p className="text-xs text-gray-500 mb-2">093 457 9999</p>
+              <h2 className="text-base font-bold text-gray-900">{profile?.name || user?.displayName || 'Guest User'}</h2>
+              <p className="text-xs text-gray-500">{profile?.email || user?.email || 'Guest Account'}</p>
+              {profile?.phone && <p className="text-xs text-gray-500 mb-2">{profile.phone}</p>}
               <button 
                 onClick={() => navigate('/membership')}
                 className="px-3 py-1 bg-[#006A4E] text-white text-[10px] font-bold rounded-md"
