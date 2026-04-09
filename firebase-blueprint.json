@@ -65,6 +65,33 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["senderId", "createdAt"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "A post in the community hub",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "content": { "type": "string" },
+        "likedBy": { "type": "array", "items": { "type": "string" } },
+        "comments": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "authorId": { "type": "string" },
+              "authorName": { "type": "string" },
+              "content": { "type": "string" },
+              "createdAt": { "type": "string" }
+            }
+          } 
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "authorName", "content"]
     }
   },
   "firestore": {
@@ -83,6 +110,10 @@
     "/conversations/{convId}/messages/{msgId}": {
       "schema": "Message",
       "description": "Chat messages"
+    },
+    "/communityPosts/{postId}": {
+      "schema": "CommunityPost",
+      "description": "Community hub posts"
     }
   }
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, where, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, doc, getDoc, setDoc, deleteDoc, orderBy, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -53,7 +53,9 @@ export default function HomeScreen() {
 
     let q = query(
       collection(db, 'books'),
-      where('status', '==', 'available')
+      where('status', '==', 'available'),
+      orderBy('createdAt', 'desc'),
+      limit(6)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -61,12 +63,6 @@ export default function HomeScreen() {
         id: doc.id,
         ...doc.data()
       })) as BookListing[];
-      
-      booksData.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
-        return timeB - timeA;
-      });
       
       setBooks(booksData);
     }, (error) => {

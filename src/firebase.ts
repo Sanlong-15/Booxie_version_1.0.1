@@ -8,7 +8,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -26,7 +26,32 @@ export const googleProvider = new GoogleAuthProvider();
 export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    const user = result.user;
+    
+    // Check if user document exists, if not create it
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        uid: user.uid,
+        name: user.displayName || 'User',
+        email: user.email,
+        photoURL: user.photoURL || '',
+        role: 'user',
+        rewardPoints: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      await setDoc(userRef, {
+        name: user.displayName || userSnap.data().name,
+        photoURL: user.photoURL || userSnap.data().photoURL,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+    
+    return user;
   } catch (error) {
     console.error("Error signing in with Google", error);
     throw error;

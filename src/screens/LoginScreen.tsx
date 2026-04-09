@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, logInWithEmail } from '../firebase';
 import { Mail, Lock, ArrowLeft, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import BooxieLogo from '../components/BooxieLogo';
 
 export default function LoginScreen() {
@@ -133,14 +134,24 @@ export default function LoginScreen() {
 
         {/* Secondary Actions */}
         <div className="space-y-3 mb-8">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="w-full bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl font-semibold text-sm shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+            className="w-full bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl font-semibold text-sm shadow-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-3 disabled:opacity-50 relative overflow-hidden group"
           >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-50/50 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-            {isLoading ? 'Signing in...' : 'Continue with Google'}
-          </button>
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Connecting...</span>
+              </div>
+            ) : (
+              'Continue with Google'
+            )}
+          </motion.button>
 
           <button
             onClick={() => {

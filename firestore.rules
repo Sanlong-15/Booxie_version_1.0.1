@@ -1,181 +1,67 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: users
-    // Document ID: {userId} (matches auth.uid)
-    // Fields:
-    //   - uid: string (required)
-    //   - name: string (required)
-    //   - email: string (required, email format)
-    //   - phone: string (optional)
-    //   - birthday: string (optional)
-    //   - gender: string (optional)
-    //   - photoURL: string (optional)
-    //   - studentIdImage: string (optional)
-    //   - role: string (enum: ['user', 'admin'])
-    //   - rewardPoints: number
-    //   - favorites: list (strings)
-    //   - createdAt: timestamp
-    //
-    // Collection: books
-    // Document ID: {bookId}
-    // Fields:
-    //   - title: string (required)
-    //   - author: string (required)
-    //   - price: number (required)
-    //   - description: string
-    //   - imageUrl: string
-    //   - condition: string
-    //   - type: string
-    //   - sellerName: string
-    //   - sellerId: string (required)
-    //   - status: string (enum: ['available', 'sold'])
-    //   - createdAt: timestamp
-    //
-    // Collection: conversations
-    // Document ID: {convId}
-    // Fields:
-    //   - bookTitle: string
-    //   - bookId: string
-    //   - isAi: bool
-    //   - lastMessage: string
-    //   - updatedAt: timestamp
-    //   - participants: list (strings)
-    //
-    // Collection: conversations/{convId}/messages
-    // Document ID: {msgId}
-    // Fields:
-    //   - conversationId: string
-    //   - senderId: string (required)
-    //   - text: string
-    //   - imageUrl: string
-    //   - audioUrl: string
-    //   - createdAt: timestamp
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    
     function isAuthenticated() {
       return request.auth != null;
     }
-
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "sh6025010078@camtech.edu.kh" && request.auth.token.email_verified == true));
+        (request.auth.token.email == "sh6025010078@camtech.edu.kh" && request.auth.token.email_verified == true);
     }
 
     function isValidEmail(email) {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
-    function isValidUrl(url) {
-      return url is string && (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:image/.*"));
-    }
-
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    function isRecent(timestamp) {
-      return timestamp is timestamp && 
-             timestamp > request.time - duration.value(5, 'm') &&
-             timestamp <= request.time;
-    }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-
     function isValidUser(data) {
       return data.uid is string &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              isValidEmail(data.email) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
-             (!('role' in data) || data.role in ['user', 'admin']) &&
-             (!('rewardPoints' in data) || data.rewardPoints is number);
+             (!('role' in data) || data.role in ['user', 'admin']);
     }
 
     function isValidBook(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
              data.author is string && data.author.size() > 0 && data.author.size() < 100 &&
-             data.price is number && data.price >= 0 &&
+             (data.price is int || data.price is float) && data.price >= 0 &&
              data.sellerId is string &&
              (!('status' in data) || data.status in ['available', 'sold']);
     }
 
-    // ===============================================================
-    // Rules
-    // ===============================================================
+    function isValidPost(data) {
+      return data.authorId is string &&
+             data.authorName is string &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             (!('likedBy' in data) || data.likedBy is list) &&
+             (!('comments' in data) || data.comments is list);
+    }
 
     match /users/{userId} {
-      // Users can read their own profile. Publicly, only non-sensitive info should be visible, 
-      // but for this app we'll restrict to owner/admin for safety.
-      allow read: if isOwner(userId) || isAdmin();
-      
-      // Allow creation if the user is authenticated and the data is valid.
-      // Users cannot set their own role to admin unless they are already an admin.
-      allow create: if isAuthenticated() && 
-                      isValidUser(request.resource.data) && 
-                      (request.resource.data.role == 'user' || isAdmin());
-      
-      // Allow updates to own profile, but cannot change role or uid.
-      allow update: if isOwner(userId) && 
-                      isValidUser(request.resource.data) && 
-                      request.resource.data.role == resource.data.role &&
-                      request.resource.data.uid == resource.data.uid;
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
     }
-
     match /books/{bookId} {
-      // Books are publicly readable.
       allow read: if true;
-      
-      // Authenticated users can create book listings.
-      allow create: if isAuthenticated() && 
-                      isValidBook(request.resource.data) && 
-                      request.resource.data.sellerId == request.auth.uid;
-      
-      // Sellers can update their own books.
-      allow update: if isAuthenticated() && 
-                      (resource.data.sellerId == request.auth.uid || isAdmin()) &&
-                      isValidBook(request.resource.data) &&
-                      request.resource.data.sellerId == resource.data.sellerId;
-                      
-      // Sellers or admins can delete books.
+      allow create: if isAuthenticated() && isValidBook(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin()) && isValidBook(request.resource.data);
       allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
     }
-
-    match /conversations/{convId} {
-      // Users can read conversations they are part of.
-      allow read: if isAuthenticated() && (request.auth.uid in resource.data.participants || resource.data.isAi == true);
-      
-      // Allow creation of conversations.
-      allow create: if isAuthenticated();
-      
-      // Allow updates to metadata (lastMessage, updatedAt).
+    match /communityPosts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
       allow update: if isAuthenticated();
-
-      match /messages/{msgId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
-      }
+      allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
     }
-
-    // Default deny
-    match /{path=**} {
-      allow read, write: if false;
+    match /conversations/{convId} {
+      allow read, write: if isAuthenticated();
+      match /messages/{msgId} {
+        allow read, write: if isAuthenticated();
+      }
     }
   }
 }

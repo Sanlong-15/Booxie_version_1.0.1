@@ -360,14 +360,17 @@ export default function SignupScreen() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={handleGoogleSignup}
               disabled={isLoading}
-              className="flex items-center justify-center gap-3 bg-white border border-gray-100 py-3.5 rounded-2xl font-semibold text-sm shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-3 bg-white border border-gray-100 py-3.5 rounded-2xl font-semibold text-sm shadow-sm hover:bg-gray-50 transition-all disabled:opacity-50 relative overflow-hidden group"
             >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-50/50 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-              <span className="text-gray-700">Google</span>
-            </button>
+              <span className="text-gray-700">{isLoading ? '...' : 'Google'}</span>
+            </motion.button>
             <button
               onClick={handleFacebookSignup}
               disabled={isLoading}
