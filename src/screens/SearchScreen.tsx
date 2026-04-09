@@ -220,7 +220,7 @@ export default function SearchScreen() {
                       {[...Array(5)].map((_, i) => (
                         <Star key={i} className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
                       ))}
-                      <span className="text-[8px] text-gray-500 ml-0.5">({book.rating || 5.0})</span>
+                      <span className="text-[8px] text-gray-500 ml-0.5">({(book.rating || 5.0).toFixed(1)})</span>
                     </div>
                   </div>
                   
