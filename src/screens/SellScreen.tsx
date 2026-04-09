@@ -60,12 +60,9 @@ export default function SellScreen() {
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Analyze this image. If there is a clear book cover, extract the book title and author. Then use Google Search to find a brief description. Since this is a secondhand book, recommend a lower price between 3 and 9 USD. Return ONLY a valid JSON object with keys: "detected" (boolean), "title" (string), "author" (string), "description" (string), and "price" (number). If no clear book cover is found, return {"detected": false}. Do not include markdown formatting.' },
+              { text: 'Analyze this image. If there is a clear book cover, extract the book title and author. Then provide a brief description. Since this is a secondhand book, recommend a lower price between 3 and 9 USD. Return ONLY a valid JSON object with keys: "detected" (boolean), "title" (string), "author" (string), "description" (string), and "price" (number). If no clear book cover is found, return {"detected": false}. Do not include markdown formatting.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
-          },
-          config: {
-            tools: [{ googleSearch: {} }]
           }
         });
 
@@ -129,10 +126,10 @@ export default function SellScreen() {
           if (activeTab === 'Front Cover') {
             setFrontCoverData({
               detected: true,
-              title: "Sample Book Title",
-              author: "Sample Author",
-              description: "This is a sample description because AI quota was exceeded.",
-              price: 10.00
+              title: 'Sample Book Title',
+              author: 'Sample Author',
+              description: 'This is a sample description because AI quota was exceeded.',
+              price: 5.00
             });
             setFrontCoverImage(imageSrc);
             setActiveTab('Back Cover');
@@ -171,7 +168,8 @@ export default function SellScreen() {
       await captureAndAnalyze();
       
       if (isMounted) {
-        timeoutId = setTimeout(runAutoScan, 2000);
+        // Increase interval to 5 seconds to avoid quota issues
+        timeoutId = setTimeout(runAutoScan, 5000);
       }
     };
 

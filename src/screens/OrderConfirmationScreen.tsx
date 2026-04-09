@@ -23,13 +23,32 @@ export default function OrderConfirmationScreen() {
 
   const handleConfirmOrder = () => {
     setIsProcessing(true);
+    
+    const orderData = {
+      orderId: 'BX' + Math.random().toString(36).substr(2, 9).toUpperCase(),
+      date: new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      items: [book],
+      subtotal: book.price,
+      deliveryFee: deliveryFee,
+      total: total,
+      paymentMethod: 'ABA PAY',
+      shippingAddress: {
+        name: 'John Doe',
+        phone: '+855 12 345 678',
+        address: '123 Street 456, Sangkat Toul Tompoung 1, Khan Chamkarmon, Phnom Penh'
+      }
+    };
+
     // Simulate API call
     setTimeout(() => {
       setIsProcessing(false);
-      setIsSuccess(true);
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
+      navigate('/receipt', { state: { orderData } });
     }, 1500);
   };
 

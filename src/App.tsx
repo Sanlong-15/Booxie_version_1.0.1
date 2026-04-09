@@ -23,6 +23,7 @@ import CartScreen from './screens/CartScreen';
 import CheckoutScreen from './screens/CheckoutScreen';
 import OrderSuccessScreen from './screens/OrderSuccessScreen';
 import OrderConfirmationScreen from './screens/OrderConfirmationScreen';
+import ReceiptScreen from './screens/ReceiptScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import BookDetailsSellScreen from './screens/BookDetailsSellScreen';
 import ScanEditScreen from './screens/ScanEditScreen';
@@ -104,6 +105,7 @@ export default function App() {
               <Route path="checkout" element={<CheckoutScreen />} />
               <Route path="order-confirmation" element={<OrderConfirmationScreen />} />
               <Route path="order-success" element={<OrderSuccessScreen />} />
+              <Route path="receipt" element={<ReceiptScreen />} />
               <Route path="profile" element={<ProfileScreen />} />
               
               {/* Placeholder Routes for missing links */}

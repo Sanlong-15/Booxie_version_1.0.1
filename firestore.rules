@@ -22,13 +22,16 @@ service cloud.firestore {
     // Fields:
     //   - title: string (required)
     //   - author: string (required)
+    //   - category: string (optional)
+    //   - isbn: string (optional)
     //   - description: string (optional)
     //   - price: number (required)
     //   - sellerId: string (required)
     //   - sellerName: string (required)
     //   - imageUrl: string (optional)
+    //   - backCoverUrl: string (optional)
     //   - status: string (required, 'available', 'sold', 'donated', 'hidden')
-    //   - condition: string (required, 'new', 'like-new', 'good', 'fair', 'poor')
+    //   - condition: string (required, 'new', 'like-new', 'good', 'fair', 'poor', 'used')
     //   - type: string (required, 'sale', 'donation')
     //   - createdAt: timestamp (required)
     //
@@ -123,17 +126,19 @@ service cloud.firestore {
     }
 
     function isValidBook(data) {
-      return hasOnlyAllowedFields(['title', 'author', 'description', 'price', 'sellerId', 'sellerName', 'imageUrl', 'backCoverUrl', 'status', 'condition', 'type', 'createdAt']) &&
-             validStringLength('title', 1, 200) &&
-             validStringLength('author', 1, 100) &&
-             (!('description' in data) || validStringLength('description', 0, 2000)) &&
+      return hasOnlyAllowedFields(['title', 'author', 'category', 'isbn', 'description', 'price', 'sellerId', 'sellerName', 'imageUrl', 'backCoverUrl', 'status', 'condition', 'type', 'createdAt']) &&
+             validStringLength('title', 0, 500) &&
+             validStringLength('author', 0, 200) &&
+             (!('category' in data) || validStringLength('category', 0, 100)) &&
+             (!('isbn' in data) || validStringLength('isbn', 0, 100)) &&
+             (!('description' in data) || validStringLength('description', 0, 5000)) &&
              data.price is number && data.price >= 0 &&
              validStringLength('sellerId', 1, 100) &&
              validStringLength('sellerName', 1, 100) &&
-             (!('imageUrl' in data) || data.imageUrl is string) &&
-             (!('backCoverUrl' in data) || data.backCoverUrl is string) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() < 2000000)) &&
+             (!('backCoverUrl' in data) || (data.backCoverUrl is string && data.backCoverUrl.size() < 2000000)) &&
              data.status in ['available', 'sold', 'donated', 'hidden'] &&
-             data.condition in ['new', 'like-new', 'good', 'fair', 'poor'] &&
+             data.condition in ['new', 'like-new', 'good', 'fair', 'poor', 'used'] &&
              data.type in ['sale', 'donation'] &&
              data.createdAt is timestamp;
     }

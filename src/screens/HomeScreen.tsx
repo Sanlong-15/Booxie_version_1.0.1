@@ -23,11 +23,11 @@ interface BookListing {
 }
 
 const CATEGORIES = [
-  { id: 'printed', label: 'Printed books', icon: '📚' },
-  { id: 'english', label: 'English books', icon: '🇬🇧' },
-  { id: 'diploma', label: 'Diploma 9', icon: '🎓' },
-  { id: 'exam', label: 'Exam subjects', icon: '📝' },
-  { id: 'fiction', label: 'Fiction Book', icon: '📖' },
+  { id: 'printed', label: 'Printed books', icon: '/cat-printed.png' },
+  { id: 'english', label: 'English books', icon: '/cat-english.png' },
+  { id: 'diploma', label: 'Diploma 9', icon: '/cat-diploma.png' },
+  { id: 'exam', label: 'Exam subjects', icon: '/cat-exam.png' },
+  { id: 'fiction', label: 'Fiction Book', icon: '/cat-fiction.png' },
 ];
 
 export default function HomeScreen() {
@@ -147,8 +147,8 @@ export default function HomeScreen() {
               onClick={() => navigate('/search')}
               className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer"
             >
-              <div className="w-16 h-16 rounded-full border border-gray-200 bg-white flex items-center justify-center text-2xl shadow-sm hover:border-[#006A4E] transition-colors">
-                {cat.icon}
+              <div className="w-16 h-16 rounded-full border border-gray-200 bg-white flex items-center justify-center overflow-hidden shadow-sm hover:border-[#006A4E] transition-colors p-2">
+                <img src={cat.icon} alt={cat.label} className="w-full h-full object-contain" />
               </div>
               <span className="text-xs text-gray-700 text-center leading-tight">{cat.label}</span>
             </div>
@@ -235,14 +235,9 @@ export default function HomeScreen() {
         <h3 className="font-bold text-gray-900 mb-4">News & Promotions</h3>
         <div 
           onClick={() => navigate('/search')}
-          className="w-full h-32 bg-[#E8F5F0] rounded-2xl overflow-hidden relative flex items-center justify-center cursor-pointer hover:shadow-md transition-shadow"
+          className="w-full h-40 bg-[#E8F5F0] rounded-2xl overflow-hidden relative flex items-center justify-center cursor-pointer hover:shadow-md transition-shadow"
         >
-          {/* Placeholder for banner image */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#88D4B9]/30 to-transparent"></div>
-          <div className="z-10 text-center p-4">
-            <h4 className="font-bold text-[#006A4E] mb-1">High School Awards 2026</h4>
-            <p className="text-xs text-[#006A4E]/80">Join the biggest educational event of the year!</p>
-          </div>
+          <img src="/news-awards.png" alt="High School Awards 2026" className="w-full h-full object-cover" />
           {/* Pagination dots */}
           <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
             <div className="w-4 h-1.5 bg-white rounded-full"></div>

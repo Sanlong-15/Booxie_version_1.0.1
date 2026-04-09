@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
-import { Send, Loader2, ArrowLeft, Phone, Camera, Smile, Image as ImageIcon, Mic, Bot } from 'lucide-react';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { Send, Loader2, ArrowLeft, Phone, Camera, Smile, Image as ImageIcon, Mic, Bot, BrainCircuit, ImagePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 
@@ -23,6 +23,9 @@ export default function GeminiChatScreen() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [thinkingMode, setThinkingMode] = useState(false);
+  const [showImageOptions, setShowImageOptions] = useState(false);
+  const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('1K');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,17 +95,66 @@ export default function GeminiChatScreen() {
   };
 
   useEffect(() => {
+    const config: any = {
+      systemInstruction: "You are the Booxie AI Assistant. Booxie is a marketplace for students to buy, sell, and donate second-hand books. Be helpful, concise, and friendly. You can help with study tips, book recommendations, and app usage."
+    };
+    
+    if (thinkingMode) {
+      config.thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
+    }
+
     chatRef.current = ai.chats.create({
-      model: 'gemini-3.1-pro-preview',
-      config: {
-        systemInstruction: "You are the Booxie AI Assistant. Booxie is a marketplace for students to buy, sell, and donate second-hand books. Be helpful, concise, and friendly. You can help with study tips, book recommendations, and app usage."
-      }
+      model: 'gemini-3-flash-preview',
+      config
     });
-  }, []);
+  }, [thinkingMode]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleGenerateImage = async (prompt: string) => {
+    if (!prompt || isLoading) return;
+    
+    setInput('');
+    setShowImageOptions(false);
+    setMessages(prev => [...prev, { role: 'user', text: `Generate image: ${prompt} (${imageSize})` }]);
+    setIsLoading(true);
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-image-preview',
+        contents: {
+          parts: [{ text: prompt }]
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: "1:1",
+            imageSize: imageSize
+          }
+        }
+      });
+
+      let imageUrl = '';
+      for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+          imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+
+      if (imageUrl) {
+        setMessages(prev => [...prev, { role: 'model', text: `![Generated Image](${imageUrl})` }]);
+      } else {
+        setMessages(prev => [...prev, { role: 'model', text: "Sorry, I couldn't generate the image." }]);
+      }
+    } catch (error) {
+      console.error("Image Generation Error:", error);
+      setMessages(prev => [...prev, { role: 'model', text: "Sorry, I encountered an error generating the image." }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSend = async (e?: React.FormEvent, textOverride?: string) => {
     e?.preventDefault();
@@ -163,9 +215,18 @@ export default function GeminiChatScreen() {
             <p className="text-[11px] text-gray-500 font-medium">Powered by AI</p>
           </div>
         </div>
-        <button className="p-2 text-[#006A4E]">
-          <Phone className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setThinkingMode(!thinkingMode)}
+            className={`p-2 rounded-full transition-colors ${thinkingMode ? 'bg-[#006A4E] text-white' : 'text-[#006A4E] bg-[#E8F5F0]'}`}
+            title="Toggle High Thinking Mode"
+          >
+            <BrainCircuit className="w-5 h-5" />
+          </button>
+          <button className="p-2 text-[#006A4E]">
+            <Phone className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Chat Area */}
@@ -240,6 +301,32 @@ export default function GeminiChatScreen() {
           </div>
         )}
 
+        {showImageOptions && (
+          <div className="absolute bottom-full right-4 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 flex flex-col gap-2 w-64 z-50">
+            <h3 className="text-xs font-bold text-gray-700 mb-1">Generate Image</h3>
+            <div className="flex gap-2 mb-2">
+              {(['1K', '2K', '4K'] as const).map(size => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => setImageSize(size)}
+                  className={`flex-1 text-xs py-1 rounded-md transition-colors ${imageSize === size ? 'bg-[#006A4E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => handleGenerateImage(input)}
+              disabled={!input.trim() || isLoading}
+              className="w-full bg-[#006A4E] text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50"
+            >
+              Generate
+            </button>
+          </div>
+        )}
+
         <input 
           type="file" 
           accept="image/*" 
@@ -282,6 +369,13 @@ export default function GeminiChatScreen() {
             )}
             
             <div className="flex items-center gap-3 text-gray-900 ml-2">
+              <button 
+                type="button" 
+                onClick={() => setShowImageOptions(!showImageOptions)}
+                className="hover:text-[#006A4E] transition-colors relative"
+              >
+                <ImagePlus className="w-5 h-5" />
+              </button>
               <button 
                 type="button" 
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}

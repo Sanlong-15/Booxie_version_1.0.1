@@ -56,7 +56,7 @@ export default function CheckoutScreen() {
 
   const handleConfirmOrder = async () => {
     if (checkoutItems.length === 0) {
-      navigate('/order-success');
+      navigate('/receipt');
       return;
     }
 
@@ -71,10 +71,32 @@ export default function CheckoutScreen() {
           });
         }
       }
+
+      const orderData = {
+        orderId: 'BX' + Math.random().toString(36).substr(2, 9).toUpperCase(),
+        date: new Date().toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        items: checkoutItems,
+        subtotal: subtotal,
+        deliveryFee: deliveryFee,
+        total: total,
+        paymentMethod: paymentMethod,
+        shippingAddress: {
+          name: fullName,
+          phone: phone,
+          address: address
+        }
+      };
+
       if (!singleBook) {
         clearCart();
       }
-      navigate('/order-success');
+      navigate('/receipt', { state: { orderData } });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `books`);
       setErrorMessage('Failed to process order. Please try again.');

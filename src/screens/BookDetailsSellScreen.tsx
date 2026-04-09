@@ -56,6 +56,8 @@ export default function BookDetailsSellScreen() {
       const bookData = {
         title: formData.title,
         author: formData.author,
+        category: formData.category,
+        isbn: formData.isbn,
         description: formData.description,
         price: Number(formData.price),
         sellerId: auth.currentUser.uid,

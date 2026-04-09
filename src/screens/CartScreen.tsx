@@ -13,7 +13,7 @@ export default function CartScreen() {
     .reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FCF9] font-sans pb-20">
+    <div className="flex flex-col h-full bg-[#F8FCF9] font-sans">
       {/* Header */}
       <header className="px-4 pt-6 pb-4 flex items-center justify-between bg-[#F8FCF9] z-10 sticky top-0">
         <div className="flex items-center gap-3">
