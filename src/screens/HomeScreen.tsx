@@ -35,21 +35,21 @@ export default function HomeScreen() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) return;
-
-    // Fetch favorites
-    const fetchFavorites = async () => {
-      try {
-        const favRef = doc(db, 'users', user.uid);
-        const favSnap = await getDoc(favRef);
-        if (favSnap.exists() && favSnap.data().favorites) {
-          setFavorites(favSnap.data().favorites);
+    if (user) {
+      // Fetch favorites
+      const fetchFavorites = async () => {
+        try {
+          const favRef = doc(db, 'users', user.uid);
+          const favSnap = await getDoc(favRef);
+          if (favSnap.exists() && favSnap.data().favorites) {
+            setFavorites(favSnap.data().favorites);
+          }
+        } catch (error) {
+          console.error("Error fetching favorites:", error);
         }
-      } catch (error) {
-        console.error("Error fetching favorites:", error);
-      }
-    };
-    fetchFavorites();
+      };
+      fetchFavorites();
+    }
 
     let q = query(
       collection(db, 'books'),

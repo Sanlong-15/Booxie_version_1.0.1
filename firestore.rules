@@ -204,8 +204,8 @@ service cloud.firestore {
     }
 
     match /books/{bookId} {
-      // Anyone authenticated can read books
-      allow read: if isAuthenticated();
+      // Anyone can read books (including guests)
+      allow read: if true;
       
       // Create: Authenticated users can create books. sellerId must match their uid.
       allow create: if isAuthenticated() && 
@@ -251,7 +251,8 @@ service cloud.firestore {
     }
 
     match /communityPosts/{postId} {
-      allow read: if isAuthenticated();
+      // Anyone can read community posts (including guests)
+      allow read: if true;
       
       allow create: if isAuthenticated() && 
                     isValidCommunityPost(request.resource.data) &&

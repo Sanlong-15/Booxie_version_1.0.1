@@ -89,35 +89,35 @@ export default function App() {
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/signup" element={<SignupScreen />} />
             
-            <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/" element={<Layout />}>
               <Route index element={<HomeScreen />} />
               <Route path="search" element={<SearchScreen />} />
-              <Route path="sell" element={<SellScreen />} />
-              <Route path="sell/edit" element={<ScanEditScreen />} />
-              <Route path="sell/details" element={<BookDetailsSellScreen />} />
+              <Route path="sell" element={<ProtectedRoute><SellScreen /></ProtectedRoute>} />
+              <Route path="sell/edit" element={<ProtectedRoute><ScanEditScreen /></ProtectedRoute>} />
+              <Route path="sell/details" element={<ProtectedRoute><BookDetailsSellScreen /></ProtectedRoute>} />
               <Route path="book/:id" element={<BookDetailScreen />} />
-              <Route path="chat" element={<ChatListScreen />} />
-              <Route path="chat/:id" element={<ChatScreen />} />
-              <Route path="rewards" element={<RewardsScreen />} />
+              <Route path="chat" element={<ProtectedRoute><ChatListScreen /></ProtectedRoute>} />
+              <Route path="chat/:id" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
+              <Route path="rewards" element={<ProtectedRoute><RewardsScreen /></ProtectedRoute>} />
               <Route path="gemini" element={<GeminiChatScreen />} />
               <Route path="community" element={<CommunityHubScreen />} />
-              <Route path="cart" element={<CartScreen />} />
-              <Route path="checkout" element={<CheckoutScreen />} />
-              <Route path="order-confirmation" element={<OrderConfirmationScreen />} />
-              <Route path="order-success" element={<OrderSuccessScreen />} />
-              <Route path="receipt" element={<ReceiptScreen />} />
-              <Route path="profile" element={<ProfileScreen />} />
+              <Route path="cart" element={<ProtectedRoute><CartScreen /></ProtectedRoute>} />
+              <Route path="checkout" element={<ProtectedRoute><CheckoutScreen /></ProtectedRoute>} />
+              <Route path="order-confirmation" element={<ProtectedRoute><OrderConfirmationScreen /></ProtectedRoute>} />
+              <Route path="order-success" element={<ProtectedRoute><OrderSuccessScreen /></ProtectedRoute>} />
+              <Route path="receipt" element={<ProtectedRoute><ReceiptScreen /></ProtectedRoute>} />
+              <Route path="profile" element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
               
               {/* Placeholder Routes for missing links */}
-              <Route path="settings" element={<PlaceholderScreen title="Settings" />} />
-              <Route path="edit-profile" element={<PlaceholderScreen title="Edit Profile" />} />
-              <Route path="membership" element={<PlaceholderScreen title="Membership" />} />
-              <Route path="orders" element={<PlaceholderScreen title="My Orders" />} />
-              <Route path="donations" element={<PlaceholderScreen title="Donations" />} />
-              <Route path="favorites" element={<PlaceholderScreen title="Favorites" />} />
-              <Route path="order/:id" element={<PlaceholderScreen title="Order Details" />} />
-              <Route path="leaderboard" element={<PlaceholderScreen title="Leaderboard" />} />
-              <Route path="earn-points" element={<PlaceholderScreen title="Earn Points" />} />
+              <Route path="settings" element={<ProtectedRoute><PlaceholderScreen title="Settings" /></ProtectedRoute>} />
+              <Route path="edit-profile" element={<ProtectedRoute><PlaceholderScreen title="Edit Profile" /></ProtectedRoute>} />
+              <Route path="membership" element={<ProtectedRoute><PlaceholderScreen title="Membership" /></ProtectedRoute>} />
+              <Route path="orders" element={<ProtectedRoute><PlaceholderScreen title="My Orders" /></ProtectedRoute>} />
+              <Route path="donations" element={<ProtectedRoute><PlaceholderScreen title="Donations" /></ProtectedRoute>} />
+              <Route path="favorites" element={<ProtectedRoute><PlaceholderScreen title="Favorites" /></ProtectedRoute>} />
+              <Route path="order/:id" element={<ProtectedRoute><PlaceholderScreen title="Order Details" /></ProtectedRoute>} />
+              <Route path="leaderboard" element={<ProtectedRoute><PlaceholderScreen title="Leaderboard" /></ProtectedRoute>} />
+              <Route path="earn-points" element={<ProtectedRoute><PlaceholderScreen title="Earn Points" /></ProtectedRoute>} />
             </Route>
 
             {/* Admin Routes */}
