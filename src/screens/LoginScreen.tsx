@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, logInWithEmail, signInAnonymously } from '../firebase';
+import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, ArrowLeft, Loader2, User, Facebook } from 'lucide-react';
 import { motion } from 'framer-motion';
 import BooxieLogo from '../components/BooxieLogo';
@@ -12,6 +13,14 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (user && !loading) {
+      navigate('/');
+    }
+  }, [user, loading, navigate]);
 
   const handleGoogleLogin = async () => {
     try {
@@ -86,8 +95,19 @@ export default function LoginScreen() {
         </div>
         
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-6 text-[10px] text-center border border-red-100 italic">
-            {error}
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 text-[11px] text-center border border-red-100 flex flex-col gap-2">
+            <span className="font-bold uppercase tracking-tight">Login Error</span>
+            <p className="italic">{error}</p>
+            {error.includes('auth/unauthorized-domain') && (
+              <div className="mt-2 text-left bg-white/50 p-2 rounded-lg border border-red-200">
+                <p className="font-bold text-red-700 mb-1">To fix this:</p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Go to your <b>Firebase Console</b></li>
+                  <li>Go to <b>Authentication</b> &gt; <b>Settings</b> &gt; <b>Authorized Domains</b></li>
+                  <li>Add <b>{window.location.hostname}</b> to the list</li>
+                </ol>
+              </div>
+            )}
           </div>
         )}
         

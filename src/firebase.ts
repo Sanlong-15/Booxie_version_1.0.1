@@ -36,7 +36,11 @@ export const signInWithGoogle = async () => {
     console.error("Firebase Auth Error:", error.code, error.message, error);
     // If it's a generic internal error, it might be due to unauthorized domain
     if (error.code === 'auth/internal-error') {
-      throw new Error('Internal authentication error. Please ensure this domain is added to your Firebase authorized domains.');
+      throw new Error('Internal authentication error. Try opening this app in a new tab.');
+    }
+    if (error.code === 'auth/unauthorized-domain') {
+      const domain = window.location.hostname;
+      throw new Error(`Domain "${domain}" is not authorized. Please add it to your Firebase Console > Authentication > Settings > Authorized Domains.`);
     }
     throw error;
   }

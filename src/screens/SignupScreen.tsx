@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signUpWithEmail } from '../firebase';
+import { useAuth } from '../context/AuthContext';
 import { 
   User, Mail, Lock, ArrowLeft, Loader2, Camera, Phone, 
   Calendar, ChevronDown, Upload, Info
@@ -9,8 +10,15 @@ import { motion } from 'framer-motion';
 
 export default function SignupScreen() {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const studentIdInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (user && !loading) {
+      navigate('/');
+    }
+  }, [user, loading, navigate]);
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -117,8 +125,19 @@ export default function SignupScreen() {
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-xs text-center border border-red-100">
-            {error}
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 text-[11px] text-center border border-red-100 flex flex-col gap-2">
+            <span className="font-bold uppercase tracking-tight">Signup Error</span>
+            <p className="italic">{error}</p>
+            {error.includes('auth/unauthorized-domain') && (
+              <div className="mt-2 text-left bg-white/50 p-2 rounded-lg border border-red-200">
+                <p className="font-bold text-red-700 mb-1">To fix this:</p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Go to your <b>Firebase Console</b></li>
+                  <li>Go to <b>Authentication</b> &gt; <b>Settings</b> &gt; <b>Authorized Domains</b></li>
+                  <li>Add <b>{window.location.hostname}</b> to the list</li>
+                </ol>
+              </div>
+            )}
           </div>
         )}
 
