@@ -99,7 +99,7 @@ export default function SellScreen() {
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Analyze this camera frame. Is there a clear Book FRONT COVER visible? If yes, extract: title, author, description, and suggested price (3-9 USD). Return ONLY a JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "price": number}. If no definite book front cover is visible, return {"detected": false}.' },
+              { text: 'Analyze this camera frame. Is there a clear Book FRONT COVER visible? If yes, extract: title, author, description, ISBN (if visible), and suggested price (3-9 USD). Return ONLY a JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "isbn": string, "price": number}. If no definite book front cover is visible, return {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -133,7 +133,7 @@ export default function SellScreen() {
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Analyze this camera frame. Is there a clear Book BACK COVER or back page visible? Return ONLY a JSON object: {"detected": boolean}. If no clear back cover is visible, return {"detected": false}.' },
+              { text: 'Analyze this camera frame. Is there a clear Book BACK COVER or back page visible? If yes, try to extract the ISBN if visible. Return ONLY a JSON object: {"detected": boolean, "isbn": string}. If no clear back cover is visible, return {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -145,13 +145,19 @@ export default function SellScreen() {
         try {
           const data = JSON.parse(text);
           if (data.detected) {
+            // Update ISBN if found on back and not already present
+            const updatedFrontData = { ...frontCoverData };
+            if (data.isbn && !updatedFrontData.isbn) {
+              updatedFrontData.isbn = data.isbn;
+            }
+
             setBackCoverImage(imageSrc);
             backCoverRef.current = imageSrc;
             setTimeout(() => {
               navigate('/sell/edit', { 
                 state: { 
                   images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean), 
-                  frontCoverData 
+                  frontCoverData: updatedFrontData
                 } 
               });
             }, 1500); 

@@ -51,11 +51,12 @@ export default function BookDetailsSellScreen() {
 
   useEffect(() => {
     if (location.state?.scannedData) {
-      const { title, author, description, price, imageUrl, backCoverUrl, type, condition } = location.state.scannedData;
+      const { title, author, description, price, imageUrl, backCoverUrl, type, condition, isbn } = location.state.scannedData;
       setFormData(prev => ({
         ...prev,
         title: title || prev.title,
         author: author || prev.author,
+        isbn: isbn || prev.isbn,
         description: description || prev.description,
         price: (price !== undefined && price !== null) ? price.toString() : prev.price,
         imageUrl: imageUrl || prev.imageUrl,
@@ -244,12 +245,13 @@ export default function BookDetailsSellScreen() {
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-600 mb-1">ID</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">ISBN</label>
                 <input 
                   type="text" 
                   value={formData.isbn}
                   onChange={e => setFormData({...formData, isbn: e.target.value})}
                   className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
+                  placeholder="Scan to extract"
                 />
               </div>
             </div>
