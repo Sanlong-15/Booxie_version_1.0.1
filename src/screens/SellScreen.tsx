@@ -71,6 +71,8 @@ export default function SellScreen() {
     }
   }, [activeIndex]);
 
+  const [showSuccessFlash, setShowSuccessFlash] = useState(false);
+
   const captureAndAnalyze = useCallback(async (isManual = false) => {
     if (isScanningRef.current || !webcamRef.current) return;
     
@@ -96,10 +98,10 @@ export default function SellScreen() {
 
       if (activeTab === 'Front Cover') {
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-flash-latest',
           contents: {
             parts: [
-              { text: 'Analyze this camera frame. Is there a clear Book FRONT COVER visible? If yes, extract: title, author, description, ISBN (if visible), and suggested price (3-9 USD). Return ONLY a JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "isbn": string, "price": number}. If no definite book front cover is visible, return {"detected": false}.' },
+              { text: 'Look for a book in this frame. If a clear FRONT COVER is visible, extract: title, author, description, ISBN, and price (3-9 USD). Return JSON: {"detected": boolean, "title": string, "author": string, "description": string, "isbn": string, "price": number}. If nothing clear is visible, return {"detected": false}. Be as fast as possible.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -111,6 +113,9 @@ export default function SellScreen() {
         try {
           const data = JSON.parse(text);
           if (data.detected) {
+            setShowSuccessFlash(true);
+            setTimeout(() => setShowSuccessFlash(false), 500);
+            
             setFrontCoverData({
               ...data,
               type: listingType,
@@ -130,10 +135,10 @@ export default function SellScreen() {
         }
       } else if (activeTab === 'Back Cover') {
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-flash-latest',
           contents: {
             parts: [
-              { text: 'Analyze this camera frame. Is there a clear Book BACK COVER or back page visible? If yes, try to extract the ISBN if visible. Return ONLY a JSON object: {"detected": boolean, "isbn": string}. If no clear back cover is visible, return {"detected": false}.' },
+              { text: 'Look for a book BACK COVER. If found, extract ISBN if visible. Return JSON: {"detected": boolean, "isbn": string}. Otherwise {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -145,6 +150,9 @@ export default function SellScreen() {
         try {
           const data = JSON.parse(text);
           if (data.detected) {
+            setShowSuccessFlash(true);
+            setTimeout(() => setShowSuccessFlash(false), 500);
+
             // Update ISBN if found on back and not already present
             const updatedFrontData = { ...frontCoverData };
             if (data.isbn && !updatedFrontData.isbn) {
@@ -160,7 +168,7 @@ export default function SellScreen() {
                   frontCoverData: updatedFrontData
                 } 
               });
-            }, 1500); 
+            }, 1000); 
           } else if (isManual) {
             setError('No book back cover detected. Please flip the book.');
           }
@@ -172,12 +180,13 @@ export default function SellScreen() {
         receiptRef.current = imageSrc;
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("Scan error:", err);
       if (isGeminiQuotaError(err)) {
         setAutoScanEnabled(false);
-        setError('Gemini API quota exceeded. Please try again in 1 minute or use a different network.');
+        setError('Gemini API quota exceeded. Please try again in 1 minute.');
       } else if (isManual) {
-        setError('Failed to scan. Please try again with better lighting.');
+        const errMsg = err?.message || 'Check your lighting and connection.';
+        setError(`Failed to scan: ${errMsg}`);
       }
     } finally {
       isScanningRef.current = false;
@@ -190,13 +199,17 @@ export default function SellScreen() {
     const runAutoScan = async () => {
       if (!autoScanEnabled) return;
       if (activeTab === 'Front Cover' || activeTab === 'Back Cover') {
-        await captureAndAnalyze();
-        timeoutId = setTimeout(runAutoScan, 8000); // 8s interval for AI detection
+        // Only trigger if we haven't already captured an image for this tab
+        const currentImage = activeTab === 'Front Cover' ? frontCoverImage : backCoverImage;
+        if (!currentImage) {
+          await captureAndAnalyze();
+        }
+        timeoutId = setTimeout(runAutoScan, 2500); // 2.5s interval for a snappy "continuous" feel
       }
     };
     runAutoScan();
     return () => clearTimeout(timeoutId);
-  }, [autoScanEnabled, activeTab, captureAndAnalyze]);
+  }, [autoScanEnabled, activeTab, captureAndAnalyze, frontCoverImage, backCoverImage]);
 
   const handleManualCapture = () => captureAndAnalyze(true);
   const handleDone = () => navigate('/');
@@ -258,6 +271,70 @@ export default function SellScreen() {
             <div className="absolute bottom-10 left-10 w-16 h-16 border-b-[5px] border-l-[5px] border-white rounded-bl-[32px] opacity-90"></div>
             <div className="absolute bottom-10 right-10 w-16 h-16 border-b-[5px] border-r-[5px] border-white rounded-br-[32px] opacity-90"></div>
           </div>
+
+          <AnimatePresence>
+            {(isScanning || autoScanEnabled) && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="absolute inset-0 pointer-events-none"
+              >
+                {/* Horizontal Scanning Bar Animation */}
+                <motion.div 
+                  animate={{ 
+                    top: ["10%", "90%", "10%"],
+                    opacity: [0.3, 0.6, 0.3]
+                  }}
+                  transition={{ 
+                    duration: 4, 
+                    repeat: Infinity, 
+                    ease: "linear" 
+                  }}
+                  className="absolute left-10 right-10 h-0.5 bg-white/40 blur-[2px] shadow-[0_0_15px_rgba(255,255,255,0.8)] z-20"
+                />
+                
+                {/* Detection Pulse */}
+                <motion.div 
+                  animate={{ scale: [1, 1.02, 1], opacity: [0.2, 0.4, 0.2] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="absolute inset-20 border border-white/20 rounded-3xl"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Success Flash & Auto-Scan Label */}
+          <AnimatePresence>
+            {showSuccessFlash && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-[#E8F5F0]/60 backdrop-blur-[2px] z-30 flex items-center justify-center pointer-events-none"
+              >
+                <motion.div 
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1.2, opacity: 1 }}
+                  className="bg-white rounded-full p-6 shadow-2xl"
+                >
+                  <Check className="w-16 h-16 text-[#1A8765]" />
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          <AnimatePresence>
+            {autoScanEnabled && !isScanning && !showSuccessFlash && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3 z-20 pointer-events-none"
+              >
+                <div className="w-2.5 h-2.5 bg-[#32B38B] rounded-full animate-pulse shadow-[0_0_10px_#32B38B]" />
+                <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white/90">Detecting Book...</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <AnimatePresence>
             {isScanning && (

@@ -82,7 +82,7 @@ export default function BookDetailsSellScreen() {
       Return only the category name. If unsure, return "Textbook".`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: prompt,
       });
 

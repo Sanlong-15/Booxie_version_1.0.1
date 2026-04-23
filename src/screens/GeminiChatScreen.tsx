@@ -94,7 +94,7 @@ export default function GeminiChatScreen() {
         }
         const base64Data = base64.split(',')[1];
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-flash-latest',
           contents: [
             {
               role: 'user',
@@ -154,7 +154,7 @@ export default function GeminiChatScreen() {
       };
       
       chatRef.current = ai.chats.create({
-        model: thinkingMode ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview',
+        model: thinkingMode ? 'gemini-3.1-pro-preview' : 'gemini-flash-latest',
         config
       });
     }
@@ -179,7 +179,7 @@ export default function GeminiChatScreen() {
         return;
       }
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
+        model: 'gemini-flash-latest', 
         contents: {
           parts: [{ text: prompt }]
         },
