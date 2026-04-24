@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { getGeminiAI } from '../lib/gemini';
+import { getGeminiAI, callGeminiWithRetry } from '../lib/gemini';
 import { Loader2, X, ReceiptText, FileText, Book, BookOpen, FileSearch, Image as ImageIcon, Check, Zap, ZapOff } from 'lucide-react';
 import { isGeminiQuotaError } from '../lib/geminiErrors';
 import { motion, AnimatePresence } from 'motion/react';
@@ -74,6 +74,7 @@ export default function SellScreen() {
   const [showSuccessFlash, setShowSuccessFlash] = useState(false);
 
   const [torchOn, setTorchOn] = useState(false);
+  const [scanStatus, setScanStatus] = useState<'IDLE' | 'SCANNING_FRONT' | 'SCANNING_BACK' | 'SUCCESS'>('SCANNING_FRONT');
 
   const toggleTorch = async () => {
     if (!webcamRef.current?.video) return;
@@ -106,93 +107,121 @@ export default function SellScreen() {
       if (!ai) {
         // Fallback for demo when no key is present
         if (isManual) {
-          setFrontCoverImage(imageSrc);
-          setActiveTab('Back Cover');
+          if (activeTab === 'Front Cover') {
+            setFrontCoverImage(imageSrc);
+            setActiveTab('Back Cover');
+            setScanStatus('SCANNING_BACK');
+          } else if (activeTab === 'Back Cover') {
+            setBackCoverImage(imageSrc);
+            handleNext();
+          }
         }
         return;
       }
 
       if (activeTab === 'Front Cover') {
-        const response = await ai.models.generateContent({
+        setScanStatus('SCANNING_FRONT');
+        const prompt = `Quick Scan: Book Front.
+        Return JSON: {"detected": boolean, "title": "...", "author": "...", "description": "2-sentence summary", "isbn": "optional string", "price": number}
+        If a book is visible, guess its title from cover text and set detected=true.`;
+
+        const response = await callGeminiWithRetry(() => ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Analyze this book front cover image. You are an expert librarian. Extract precisely: \n- title (full name)\n- author (full name)\n- description (a compelling 2-3 sentence summary based on visual cues)\n- ISBN (if visible, 10 or 13 digits)\n- suggested price (integer or two-decimal number in USD, typical second-hand market value 2.00-15.00)\n\nReturn ONLY a valid JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "isbn": string, "price": number}. If no book cover is clearly visible, return {"detected": false}.' },
+              { text: prompt },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
+          },
+          config: {
+            temperature: 0.1,
+            responseMimeType: "application/json",
           }
-        });
+        }));
+        if (!response) return;
 
         let text = response.text || '{}';
         text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         try {
           const data = JSON.parse(text);
-          if (data.detected) {
+          if (data.detected && (data.title || data.author)) {
             setShowSuccessFlash(true);
-            setTimeout(() => setShowSuccessFlash(false), 500);
+            setTimeout(() => setShowSuccessFlash(false), 800);
             
             setFrontCoverData({
               ...data,
               type: listingType,
-              price: listingType === 'donation' ? 0 : data.price
+              price: listingType === 'donation' ? 0 : (data.price || 5.00)
             });
             setFrontCoverImage(imageSrc);
             frontCoverRef.current = imageSrc;
-            // Smooth 2026 UX transition
+            
+            // Auto switch to back cover
+            setScanStatus('SUCCESS');
             setTimeout(() => {
               setActiveTab('Back Cover');
-            }, 1000);
-          } else if (isManual) {
-            setError('No book front cover detected. Please ensure the book is in focus.');
+              setScanStatus('SCANNING_BACK');
+            }, 800);
           }
         } catch (e) {
-          if (isManual) setError('AI processing failed. Please try again.');
+          console.error("Parse error:", e);
         }
       } else if (activeTab === 'Back Cover') {
-        const response = await ai.models.generateContent({
+        setScanStatus('SCANNING_BACK');
+        const prompt = `Quick Extract: Book Back.
+        Extract ANY readable summary or blurb text. 
+        Return JSON: {"detected": boolean, "isbn": "optional", "summary": "..."}
+        If text is readable, detected is true. Be fast.`;
+
+        const response = await callGeminiWithRetry(() => ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Analyze this book back cover image. Look for barcodes, ISBN numbers (10 or 13 digits, often starting with 978 or 979), and blurbs. \n\nReturn ONLY JSON: {"detected": boolean, "isbn": string, "summary": string}. If nothing is detected, return {"detected": false}.' },
+              { text: prompt },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
+          },
+          config: {
+            temperature: 0.1,
+            responseMimeType: "application/json",
           }
-        });
+        }));
+        if (!response) return;
 
         let text = response.text || '{}';
         text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         try {
           const data = JSON.parse(text);
-          if (data.detected) {
+          // If detected is true OR if we got a summary, proceed
+          if (data.detected || data.summary) {
             setShowSuccessFlash(true);
-            setTimeout(() => setShowSuccessFlash(false), 500);
+            setTimeout(() => setShowSuccessFlash(false), 800);
 
-            // Update data from back scan
+            // Merge data
             const updatedFrontData = { ...frontCoverData };
-            if (data.isbn && !updatedFrontData.isbn) {
-              updatedFrontData.isbn = data.isbn;
-            }
-            if (data.summary && (!updatedFrontData.description || updatedFrontData.description.length < 20)) {
+            if (data.isbn && !updatedFrontData.isbn) updatedFrontData.isbn = data.isbn;
+            if (data.summary && (!updatedFrontData.description || updatedFrontData.description.length < 30)) {
               updatedFrontData.description = data.summary;
             }
 
             setBackCoverImage(imageSrc);
             backCoverRef.current = imageSrc;
+            setScanStatus('SUCCESS');
+
+            // Final auto-transition to edit screen
             setTimeout(() => {
               navigate('/sell/edit', { 
                 state: { 
-                  images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean), 
+                  images: [frontCoverRef.current, imageSrc].filter(Boolean), 
                   frontCoverData: updatedFrontData
                 } 
               });
-            }, 1000); 
-          } else if (isManual) {
-            setError('No book back cover detected. Please flip the book.');
+            }, 1200); 
           }
         } catch (e) {
-          if (isManual) setError('Verification failed. Try again.');
+          console.error("Parse error:", e);
         }
       } else if (activeTab === 'Receipt') {
         setReceiptImage(imageSrc);
@@ -202,29 +231,32 @@ export default function SellScreen() {
       console.error("Scan error:", err);
       if (isGeminiQuotaError(err)) {
         setAutoScanEnabled(false);
-        setError('Gemini API quota exceeded. Please try again in 1 minute.');
-      } else if (isManual) {
-        const errMsg = err?.message || 'Check your lighting and connection.';
-        setError(`Failed to scan: ${errMsg}`);
+        setError('Monthly quota limit reached. Switch to manual capture.');
+      } else {
+        // Only show error for manual triggers to maintain seamless auto-scan
+        if (isManual) {
+          setError(err?.message || 'Server busy. Please try capturing again.');
+        }
       }
     } finally {
       isScanningRef.current = false;
       setIsScanning(false);
     }
-  }, [activeTab, frontCoverData, frontCoverImage, receiptImage, listingType, navigate]);
+  }, [activeTab, frontCoverData, listingType, navigate]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     const runAutoScan = async () => {
       if (!autoScanEnabled) return;
-      if (activeTab === 'Front Cover' || activeTab === 'Back Cover') {
-        // Only trigger if we haven't already captured an image for this tab
-        const currentImage = activeTab === 'Front Cover' ? frontCoverImage : backCoverImage;
-        if (!currentImage) {
-          await captureAndAnalyze();
-        }
-        timeoutId = setTimeout(runAutoScan, 2500); // 2.5s interval for a snappy "continuous" feel
+      
+      // Auto-scan front or back if not yet captured
+      if (activeTab === 'Front Cover' && !frontCoverImage) {
+        await captureAndAnalyze();
+      } else if (activeTab === 'Back Cover' && !backCoverImage) {
+        await captureAndAnalyze();
       }
+      
+      timeoutId = setTimeout(runAutoScan, 1800); // More aggressive but safe
     };
     runAutoScan();
     return () => clearTimeout(timeoutId);
@@ -281,7 +313,7 @@ export default function SellScreen() {
 
       {/* Main Content Area */}
       <div className="flex-1 relative flex flex-col items-center justify-center min-h-0 px-6">
-        {/* Scanning Box */}
+          {/* Scanning Box */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -297,14 +329,39 @@ export default function SellScreen() {
               className="w-full h-full object-cover grayscale-[0.2] contrast-[1.1] brightness-[1.05]"
             />
             
+            {/* HUD Overlay Guiding */}
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-between py-10 pointer-events-none">
+              <motion.div 
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="bg-black/60 backdrop-blur-xl px-5 py-2 rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center"
+              >
+                <p className="text-[10px] font-black tracking-widest text-[#32B38B] mb-1">
+                  {scanStatus === 'SUCCESS' ? 'VERIFIED' : 'AUTOMATIC SCAN'}
+                </p>
+                <p className="text-sm font-bold text-white uppercase italic">
+                  {activeTab === 'Front Cover' ? 'Step 1: Front Cover' : 'Step 2: Back Cover'}
+                </p>
+              </motion.div>
+
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-[10px] font-medium text-white/70 bg-black/40 px-4 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
+                  {activeTab === 'Front Cover' 
+                    ? 'Center the book title & author' 
+                    : 'Flip and center the barcode'}
+                </p>
+              </div>
+            </div>
+
             {/* Focus Ring Indicator */}
             <motion.div 
               animate={{ 
                 scale: [1, 0.95, 1],
-                opacity: [0.3, 0.6, 0.3]
+                opacity: [0.3, 0.6, 0.3],
+                borderColor: scanStatus === 'SUCCESS' ? 'rgba(50, 179, 139, 0.8)' : 'rgba(255, 255, 255, 0.3)'
               }}
               transition={{ duration: 1.5, repeat: Infinity }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-white/30 rounded-3xl z-10 pointer-events-none"
+              className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 border-2 rounded-3xl z-10 pointer-events-none transition-colors duration-500`}
             />
           </div>
 
@@ -314,7 +371,7 @@ export default function SellScreen() {
               e.stopPropagation();
               toggleTorch();
             }}
-            className={`absolute top-10 right-10 p-4 rounded-full backdrop-blur-xl transition-all z-40 border shadow-2xl ${
+            className={`absolute top-12 right-10 p-4 rounded-full backdrop-blur-xl transition-all z-40 border shadow-2xl ${
               torchOn 
                 ? 'bg-yellow-400 text-black border-yellow-300 shadow-[0_0_25px_rgba(250,204,21,0.5)]' 
                 : 'bg-black/40 text-white border-white/20 hover:bg-black/60'
@@ -324,8 +381,8 @@ export default function SellScreen() {
           </button>
           
           {/* Corner Brackets */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-10 left-10 w-16 h-16 border-t-[5px] border-l-[5px] border-white rounded-tl-[32px] opacity-90"></div>
+          <div className="absolute inset-0 pointer-events-none z-20">
+            <div className="absolute top-10 left-10 w-16 h-16 border-t-[5px] border-l-[5px] border-white rounded-tl-[32px] opacity-90 transition-all duration-300"></div>
             <div className="absolute top-10 right-10 w-16 h-16 border-t-[5px] border-r-[5px] border-white rounded-tr-[32px] opacity-90"></div>
             <div className="absolute bottom-10 left-10 w-16 h-16 border-b-[5px] border-l-[5px] border-white rounded-bl-[32px] opacity-90"></div>
             <div className="absolute bottom-10 right-10 w-16 h-16 border-b-[5px] border-r-[5px] border-white rounded-br-[32px] opacity-90"></div>
@@ -336,27 +393,27 @@ export default function SellScreen() {
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="absolute inset-0 pointer-events-none"
+                className="absolute inset-0 pointer-events-none z-20"
               >
                 {/* Horizontal Scanning Bar Animation */}
                 <motion.div 
                   animate={{ 
                     top: ["10%", "90%", "10%"],
-                    opacity: [0.3, 0.6, 0.3]
+                    opacity: [0.3, 0.7, 0.3]
                   }}
                   transition={{ 
-                    duration: 4, 
+                    duration: 3, 
                     repeat: Infinity, 
-                    ease: "linear" 
+                    ease: "easeInOut" 
                   }}
-                  className="absolute left-10 right-10 h-0.5 bg-white/40 blur-[2px] shadow-[0_0_15px_rgba(255,255,255,0.8)] z-20"
+                  className={`absolute left-10 right-10 h-1 bg-gradient-to-r from-transparent via-[#32B38B] to-transparent blur-[2px] shadow-[0_0_20px_#32B38B]` }
                 />
                 
                 {/* Detection Pulse */}
                 <motion.div 
-                  animate={{ scale: [1, 1.02, 1], opacity: [0.2, 0.4, 0.2] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute inset-20 border border-white/20 rounded-3xl"
+                  animate={{ scale: [1, 1.05, 1.1], opacity: [0, 0.2, 0] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  className="absolute inset-10 border-2 border-[#32B38B] rounded-[40px]"
                 />
               </motion.div>
             )}
@@ -369,50 +426,60 @@ export default function SellScreen() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-[#E8F5F0]/60 backdrop-blur-[2px] z-30 flex items-center justify-center pointer-events-none"
+                className="absolute inset-0 bg-[#32B38B]/40 backdrop-blur-[4px] z-[60] flex items-center justify-center pointer-events-none"
               >
                 <motion.div 
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1.2, opacity: 1 }}
-                  className="bg-white rounded-full p-6 shadow-2xl"
+                  initial={{ scale: 0.5, opacity: 0, rotate: -20 }}
+                  animate={{ scale: 1.2, opacity: 1, rotate: 0 }}
+                  className="bg-white rounded-full p-8 shadow-[0_20px_50px_rgba(0,0,0,0.3)] border-4 border-[#32B38B]/20"
                 >
-                  <Check className="w-16 h-16 text-[#1A8765]" />
+                  <Check className="w-16 h-16 text-[#32B38B] stroke-[4px]" />
                 </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
           
           <AnimatePresence>
-            {autoScanEnabled && !isScanning && !showSuccessFlash && (
+            {autoScanEnabled && !isScanning && !showSuccessFlash && scanStatus !== 'SUCCESS' && (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 flex items-center gap-3 z-20 pointer-events-none"
+                className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-[#32B38B] px-8 py-2.5 rounded-full shadow-[0_15px_40px_rgba(50,179,139,0.4)] flex items-center gap-3 z-40 pointer-events-none border border-white/30"
               >
-                <div className="w-2.5 h-2.5 bg-[#32B38B] rounded-full animate-pulse shadow-[0_0_10px_#32B38B]" />
-                <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white/90">Detecting Book...</span>
+                <div className="w-2.5 h-2.5 bg-white rounded-full animate-ping" />
+                <span className="text-[10px] font-black tracking-[0.2em] uppercase text-white">AI DETECTING...</span>
               </motion.div>
             )}
           </AnimatePresence>
 
           <AnimatePresence>
-            {isScanning && (
+            {isScanning && !showSuccessFlash && (
               <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-xl text-white px-6 py-2.5 rounded-full flex items-center gap-3 text-sm font-bold shadow-2xl border border-white/20 z-50"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="absolute inset-0 flex items-center justify-center z-[70] bg-black/30 backdrop-blur-sm"
               >
-                <Loader2 className="w-4 h-4 animate-spin text-[#32B38B]" />
-                <span>Scanning {activeTab}...</span>
+                <div className="bg-white/90 backdrop-blur-xl p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 border border-white/50 max-w-[280px]">
+                  <div className="relative">
+                    <Loader2 className="w-12 h-12 animate-spin text-[#1A8765] stroke-[3px]" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-6 h-6 bg-[#1A8765]/10 rounded-full animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-lg font-black text-[#1A8765] uppercase italic">Analysing</span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{activeTab}</span>
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
 
           {/* Step Indicator Overlay */}
-          <div className="absolute top-6 left-6 right-6 flex gap-2 z-40">
-            <div className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${frontCoverImage ? 'bg-[#32B38B]' : 'bg-white/20'}`} />
-            <div className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${backCoverImage ? 'bg-[#32B38B]' : 'bg-white/20'}`} />
+          <div className="absolute top-6 left-6 right-6 flex gap-3 z-50">
+            <div className={`flex-1 h-2 rounded-full transition-all duration-700 shadow-sm ${frontCoverImage ? 'bg-white scale-y-125' : 'bg-white/20'}`} />
+            <div className={`flex-1 h-2 rounded-full transition-all duration-700 shadow-sm ${backCoverImage ? 'bg-white scale-y-125' : 'bg-white/20'}`} />
           </div>
         </motion.div>
 

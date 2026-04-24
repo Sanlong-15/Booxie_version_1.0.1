@@ -5,6 +5,7 @@ import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { ChevronLeft, ChevronDown, Sparkles, BookOpen, GraduationCap, Microscope, Globe, ScrollText, Library, Languages, Check } from 'lucide-react';
 import { addRewardPoints, REWARD_POINTS } from '../lib/rewards';
 import { GoogleGenAI, Type } from "@google/genai";
+import { getGeminiAI, callGeminiWithRetry } from '../lib/gemini';
 import { motion, AnimatePresence } from 'motion/react';
 import { isGeminiQuotaError } from '../lib/geminiErrors';
 
@@ -76,15 +77,17 @@ export default function BookDetailsSellScreen() {
     setIsRecommending(true);
     setQuotaExceeded(false);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = getGeminiAI();
+      if (!ai) return;
+
       const prompt = `Based on this book info: Title: "${title}", Author: "${author}", Description: "${desc}". 
       Select the best category from this list: ${CATEGORIES.map(c => c.id).join(', ')}. 
       Return only the category name. If unsure, return "Textbook".`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: prompt,
-      });
+      }));
 
       const recommendation = response.text?.trim();
       if (recommendation && CATEGORIES.some(c => c.id === recommendation)) {

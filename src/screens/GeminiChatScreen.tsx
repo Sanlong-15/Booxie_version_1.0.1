@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ThinkingLevel, FunctionDeclaration, Type } from '@google/genai';
-import { getGeminiAI } from '../lib/gemini';
+import { getGeminiAI, callGeminiWithRetry } from '../lib/gemini';
 import { Send, Loader2, ArrowLeft, Phone, Camera, Smile, Image as ImageIcon, Mic, Bot, BrainCircuit, ImagePlus, Search, BookOpen, Star, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
@@ -93,7 +93,7 @@ export default function GeminiChatScreen() {
           return;
         }
         const base64Data = base64.split(',')[1];
-        const response = await ai.models.generateContent({
+        const response = await callGeminiWithRetry(() => ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: [
             {
@@ -104,7 +104,7 @@ export default function GeminiChatScreen() {
               ]
             }
           ]
-        });
+        }));
 
         setMessages(prev => [...prev, { role: 'model', text: response.text || "I couldn't analyze the image." }]);
       } catch (error: any) {
@@ -178,7 +178,7 @@ export default function GeminiChatScreen() {
         setMessages(prev => [...prev, { role: 'model', text: "AI assistant is not configured. Please set the Gemini API key." }]);
         return;
       }
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview', 
         contents: {
           parts: [{ text: prompt }]
@@ -189,7 +189,7 @@ export default function GeminiChatScreen() {
             imageSize: imageSize
           }
         }
-      });
+      }));
 
       let imageUrl = '';
       for (const part of response.candidates?.[0]?.content?.parts || []) {
@@ -239,7 +239,7 @@ export default function GeminiChatScreen() {
       // Add an empty model message that we will stream into
       setMessages(prev => [...prev, { role: 'model', text: '' }]);
       
-      let response = await chatRef.current.sendMessage({ message: textToSend });
+      let response = await callGeminiWithRetry(() => chatRef.current.sendMessage({ message: textToSend }));
       
       // Handle Function Calling potentially multiple times
       let attempts = 0;
@@ -305,7 +305,7 @@ export default function GeminiChatScreen() {
             }]
           };
 
-          response = await chatRef.current.sendMessage({ message: toolResponse });
+          response = await callGeminiWithRetry(() => chatRef.current.sendMessage({ message: toolResponse }));
           
           // Update message with text and the books property for rendering
           setMessages(prev => {

@@ -5,7 +5,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Send, CheckCircle, MoreVertical, Phone, Video, Camera, Image as ImageIcon, Smile, Mic, Check, CheckCheck } from 'lucide-react';
 import { format } from 'date-fns';
-import { getGeminiAI } from '../lib/gemini';
+import { getGeminiAI, callGeminiWithRetry } from '../lib/gemini';
 import { ThinkingLevel } from '@google/genai';
 import { isGeminiQuotaError, GEMINI_QUOTA_ERROR_MESSAGE } from '../lib/geminiErrors';
 
@@ -159,14 +159,14 @@ export default function ChatScreen() {
            };
         }
 
-        const response = await ai.models.generateContent({
+        const response = await callGeminiWithRetry(() => ai.models.generateContent({
           model: 'gemini-3.1-pro-preview',
           contents: aiContents,
           config: {
             systemInstruction: "You are Booxie AI Help, a friendly customer support chatbot for a second-hand book marketplace called Booxie. Keep your answers short, helpful, and friendly. You can suggest books, give price recommendations, and answer FAQs.",
             thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
           }
-        });
+        }));
         
         const newAiMsg = {
           id: (Date.now() + 1).toString(),
