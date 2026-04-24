@@ -121,9 +121,9 @@ export default function SellScreen() {
 
       if (activeTab === 'Front Cover') {
         setScanStatus('SCANNING_FRONT');
-        const prompt = `Quick Scan: Book Front.
-        Return JSON: {"detected": boolean, "title": "...", "author": "...", "description": "2-sentence summary", "isbn": "optional string", "price": number}
-        If a book is visible, guess its title from cover text and set detected=true.`;
+        const prompt = `Lightning Mode: Book Front. 
+        Return JSON: {"detected": true, "title": "...", "author": "...", "description": "1-sentence", "isbn": "...", "price": 0.00}
+        Focus only on core details. Be extremely fast.`;
 
         const response = await callGeminiWithRetry(() => ai.models.generateContent({
           model: 'gemini-3-flash-preview',
@@ -147,7 +147,7 @@ export default function SellScreen() {
           const data = JSON.parse(text);
           if (data.detected && (data.title || data.author)) {
             setShowSuccessFlash(true);
-            setTimeout(() => setShowSuccessFlash(false), 800);
+            setTimeout(() => setShowSuccessFlash(false), 500);
             
             setFrontCoverData({
               ...data,
@@ -162,17 +162,17 @@ export default function SellScreen() {
             setTimeout(() => {
               setActiveTab('Back Cover');
               setScanStatus('SCANNING_BACK');
-            }, 800);
+            }, 500);
           }
         } catch (e) {
           console.error("Parse error:", e);
         }
       } else if (activeTab === 'Back Cover') {
         setScanStatus('SCANNING_BACK');
-        const prompt = `Quick Extract: Book Back.
-        Extract ANY readable summary or blurb text. 
-        Return JSON: {"detected": boolean, "isbn": "optional", "summary": "..."}
-        If text is readable, detected is true. Be fast.`;
+        const prompt = `Lightning Mode: Book Back.
+        Extract ANY summary text. 
+        Return JSON: {"detected": boolean, "isbn": "...", "summary": "..."}
+        Be extremely fast.`;
 
         const response = await callGeminiWithRetry(() => ai.models.generateContent({
           model: 'gemini-3-flash-preview',
@@ -197,7 +197,7 @@ export default function SellScreen() {
           // If detected is true OR if we got a summary, proceed
           if (data.detected || data.summary) {
             setShowSuccessFlash(true);
-            setTimeout(() => setShowSuccessFlash(false), 800);
+            setTimeout(() => setShowSuccessFlash(false), 500);
 
             // Merge data
             const updatedFrontData = { ...frontCoverData };
@@ -218,7 +218,7 @@ export default function SellScreen() {
                   frontCoverData: updatedFrontData
                 } 
               });
-            }, 1200); 
+            }, 800); 
           }
         } catch (e) {
           console.error("Parse error:", e);
