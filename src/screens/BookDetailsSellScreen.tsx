@@ -82,7 +82,7 @@ export default function BookDetailsSellScreen() {
       Return only the category name. If unsure, return "Textbook".`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-flash-latest",
+        model: "gemini-3-flash-preview",
         contents: prompt,
       });
 
@@ -128,7 +128,7 @@ export default function BookDetailsSellScreen() {
         backCoverUrl: formData.backCoverUrl
       };
 
-      // Try to save to Firestore, but proceed even if it fails (for guest demo)
+      // Try to save to Firestore
       try {
         await addDoc(collection(db, 'books'), bookData);
         
@@ -138,15 +138,22 @@ export default function BookDetailsSellScreen() {
           const rewardType = formData.type === 'donation' ? 'donated' : 'sold';
           await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
         }
-      } catch (fsErr) {
-        console.warn("Firestore save skipped or failed in guest mode:", fsErr);
+      } catch (fsErr: any) {
+        if (fsErr.isQuota) {
+          setError('Daily listing limit reached for the platform. Book listed locally for demo.');
+          // We show success anyway for demo purposes, as if it worked locally
+        } else {
+          console.warn("Firestore save skipped or failed:", fsErr);
+          throw fsErr;
+        }
       }
 
       setShowConfirm(false);
       setShowSuccess(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error("General error in confirmSell:", err);
-      setError('Failed to list book.');
+      const msg = err.isQuota ? 'Daily database limit reached.' : 'Failed to list book.';
+      setError(msg);
       setShowConfirm(false);
     } finally {
       setIsSubmitting(false);

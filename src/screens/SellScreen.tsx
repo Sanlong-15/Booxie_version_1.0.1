@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { getGeminiAI } from '../lib/gemini';
-import { Loader2, X, ReceiptText, FileText, Book, BookOpen, FileSearch, Image as ImageIcon, Check } from 'lucide-react';
+import { Loader2, X, ReceiptText, FileText, Book, BookOpen, FileSearch, Image as ImageIcon, Check, Zap, ZapOff } from 'lucide-react';
 import { isGeminiQuotaError } from '../lib/geminiErrors';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -73,6 +73,22 @@ export default function SellScreen() {
 
   const [showSuccessFlash, setShowSuccessFlash] = useState(false);
 
+  const [torchOn, setTorchOn] = useState(false);
+
+  const toggleTorch = async () => {
+    if (!webcamRef.current?.video) return;
+    const stream = webcamRef.current.video.srcObject as MediaStream;
+    const track = stream.getVideoTracks()[0];
+    try {
+      await track.applyConstraints({
+        advanced: [{ torch: !torchOn } as any]
+      });
+      setTorchOn(!torchOn);
+    } catch (err) {
+      console.warn("Torch not supported on this device/browser:", err);
+    }
+  };
+
   const captureAndAnalyze = useCallback(async (isManual = false) => {
     if (isScanningRef.current || !webcamRef.current) return;
     
@@ -98,10 +114,10 @@ export default function SellScreen() {
 
       if (activeTab === 'Front Cover') {
         const response = await ai.models.generateContent({
-          model: 'gemini-flash-latest',
+          model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Look for a book in this frame. If a clear FRONT COVER is visible, extract: title, author, description, ISBN, and price (3-9 USD). Return JSON: {"detected": boolean, "title": string, "author": string, "description": string, "isbn": string, "price": number}. If nothing clear is visible, return {"detected": false}. Be as fast as possible.' },
+              { text: 'Analyze this book front cover. Extract: title, author, description, ISBN, and suggested price (3-9 USD). Be extremely detail-oriented. If the image is blurry, do your best to infer the title. Return ONLY a JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "isbn": string, "price": number}. If no book is visible, return {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -135,10 +151,10 @@ export default function SellScreen() {
         }
       } else if (activeTab === 'Back Cover') {
         const response = await ai.models.generateContent({
-          model: 'gemini-flash-latest',
+          model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Look for a book BACK COVER. If found, extract ISBN if visible. Return JSON: {"detected": boolean, "isbn": string}. Otherwise {"detected": false}.' },
+              { text: 'Look for a book back cover. If you see an ISBN barcode or numeric code (usually 10 or 13 digits), extract it. Return ONLY JSON: {"detected": boolean, "isbn": string}. If nothing is detected, return {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -212,6 +228,18 @@ export default function SellScreen() {
   }, [autoScanEnabled, activeTab, captureAndAnalyze, frontCoverImage, backCoverImage]);
 
   const handleManualCapture = () => captureAndAnalyze(true);
+  const handleNext = () => {
+    if (!frontCoverImage || !backCoverImage) {
+      setError('Please scan both Front and Back covers for a complete listing.');
+      return;
+    }
+    navigate('/sell/edit', { 
+      state: { 
+        images: [frontCoverImage, backCoverImage, receiptImage].filter(Boolean), 
+        frontCoverData 
+      } 
+    });
+  };
   const handleDone = () => navigate('/');
 
   return (
@@ -256,13 +284,41 @@ export default function SellScreen() {
           animate={{ opacity: 1, scale: 1 }}
           className="relative w-full aspect-[9/18] max-w-sm rounded-[50px] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.5)] border border-white/10 bg-black/20"
         >
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            videoConstraints={{ facingMode: "environment" }}
-            className="w-full h-full object-cover"
-          />
+          {/* Camera Viewport */}
+          <div className="relative w-full h-full">
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              videoConstraints={{ facingMode: "environment" }}
+              className="w-full h-full object-cover grayscale-[0.2] contrast-[1.1] brightness-[1.05]"
+            />
+            
+            {/* Focus Ring Indicator */}
+            <motion.div 
+              animate={{ 
+                scale: [1, 0.95, 1],
+                opacity: [0.3, 0.6, 0.3]
+              }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-white/30 rounded-3xl z-10 pointer-events-none"
+            />
+          </div>
+
+          {/* Flash/Torch Toggle Button */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleTorch();
+            }}
+            className={`absolute top-10 right-10 p-4 rounded-full backdrop-blur-xl transition-all z-40 border shadow-2xl ${
+              torchOn 
+                ? 'bg-yellow-400 text-black border-yellow-300 shadow-[0_0_25px_rgba(250,204,21,0.5)]' 
+                : 'bg-black/40 text-white border-white/20 hover:bg-black/60'
+            }`}
+          >
+            {torchOn ? <Zap className="w-5 h-5 fill-current" /> : <ZapOff className="w-5 h-5" />}
+          </button>
           
           {/* Corner Brackets */}
           <div className="absolute inset-0 pointer-events-none">
@@ -342,13 +398,19 @@ export default function SellScreen() {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-xl text-white px-6 py-2.5 rounded-full flex items-center gap-3 text-sm font-bold shadow-2xl border border-white/20"
+                className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-xl text-white px-6 py-2.5 rounded-full flex items-center gap-3 text-sm font-bold shadow-2xl border border-white/20 z-50"
               >
                 <Loader2 className="w-4 h-4 animate-spin text-[#32B38B]" />
                 <span>Scanning {activeTab}...</span>
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Step Indicator Overlay */}
+          <div className="absolute top-6 left-6 right-6 flex gap-2 z-40">
+            <div className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${frontCoverImage ? 'bg-[#32B38B]' : 'bg-white/20'}`} />
+            <div className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${backCoverImage ? 'bg-[#32B38B]' : 'bg-white/20'}`} />
+          </div>
         </motion.div>
 
         {error && (
@@ -453,13 +515,12 @@ export default function SellScreen() {
 
           <motion.button 
             whileTap={{ scale: 0.9 }}
-            onClick={() => navigate('/sell/edit', { 
-              state: { 
-                images: [frontCoverRef.current, backCoverRef.current, receiptRef.current].filter(Boolean), 
-                frontCoverData 
-              } 
-            })}
-            className="w-14 h-14 bg-white text-[#1A8765] rounded-2xl flex items-center justify-center shadow-2xl font-bold text-xs"
+            onClick={handleNext}
+            className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl font-bold text-xs transition-all ${
+              frontCoverImage && backCoverImage 
+                ? 'bg-white text-[#1A8765]' 
+                : 'bg-white/20 text-white/40 cursor-not-allowed'
+            }`}
           >
             NEXT
           </motion.button>

@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import { motion } from 'motion/react';
 import { isGeminiQuotaError, GEMINI_QUOTA_ERROR_MESSAGE } from '../lib/geminiErrors';
 import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 
 const PROMPT_CHIPS = [
   "Recommend books for Grade 12 Math",
@@ -94,7 +94,7 @@ export default function GeminiChatScreen() {
         }
         const base64Data = base64.split(',')[1];
         const response = await ai.models.generateContent({
-          model: 'gemini-flash-latest',
+          model: 'gemini-3-flash-preview',
           contents: [
             {
               role: 'user',
@@ -154,7 +154,7 @@ export default function GeminiChatScreen() {
       };
       
       chatRef.current = ai.chats.create({
-        model: thinkingMode ? 'gemini-3.1-pro-preview' : 'gemini-flash-latest',
+        model: thinkingMode ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview',
         config
       });
     }
@@ -179,7 +179,7 @@ export default function GeminiChatScreen() {
         return;
       }
       const response = await ai.models.generateContent({
-        model: 'gemini-flash-latest', 
+        model: 'gemini-3-flash-preview', 
         contents: {
           parts: [{ text: prompt }]
         },
@@ -250,15 +250,21 @@ export default function GeminiChatScreen() {
           const { queryText } = call.args as any;
           
           // Execute Firestore Search
-          const booksRef = collection(db, 'books');
-          const q = query(
-            booksRef, 
-            where('status', '==', 'available'),
-            limit(20)
-          );
-          
-          const snapshot = await getDocs(q);
-          const dbResults = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookResult));
+          let dbResults: BookResult[] = [];
+          try {
+            const booksRef = collection(db, 'books');
+            const q = query(
+              booksRef, 
+              where('status', '==', 'available'),
+              limit(20)
+            );
+            const snapshot = await getDocs(q);
+            dbResults = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookResult));
+          } catch (error: any) {
+            console.warn("Firestore Search within tool failed (likely quota):", error.message);
+            // We'll fall back to MOCK_BOOKS below, but let's register the error for the warning component
+            try { handleFirestoreError(error, OperationType.LIST, 'books'); } catch(e) {}
+          }
           
           // Filter if we have a query
           let filteredResults: BookResult[] = [];

@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, where, doc, getDoc, setDoc, deleteDoc, o
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { BookOpen, Search, Heart, Star, ChevronRight, MessageCircle, Loader2, Filter, X } from 'lucide-react';
+import { BookOpen, Search, Heart, Star, ChevronRight, MessageCircle, Loader2, Filter, X, Camera, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -47,8 +47,10 @@ export default function HomeScreen() {
           if (favSnap.exists() && favSnap.data().favorites) {
             setFavorites(favSnap.data().favorites);
           }
-        } catch (error) {
-          console.error("Error fetching favorites:", error);
+        } catch (error: any) {
+          console.warn("Error fetching favorites (quota?):", error.message);
+          // Register but don't crash
+          try { handleFirestoreError(error, OperationType.GET, `users/${user.uid}`); } catch(e) {}
         }
       };
       fetchFavorites();
@@ -58,18 +60,30 @@ export default function HomeScreen() {
       collection(db, 'books'),
       where('status', '==', 'available'),
       ...(selectedGenre !== 'All' ? [where('category', '==', selectedGenre)] : []),
-      orderBy('createdAt', 'desc'),
-      limit(6)
+      limit(20) // Get more items then sort
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const booksData = snapshot.docs.map(doc => ({
+      let booksData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as BookListing[];
       
-      setBooks(booksData);
-    }, (error) => {
+      // Sort in memory to avoid needing composite indexes
+      booksData.sort((a, b) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      });
+
+      setBooks(booksData.slice(0, 8)); // Show a subset after sorting
+    }, (error: any) => {
+      console.warn("HomeScreen: Firestore status listener error", error.message);
+      // Suppress the big JSON throw for quota errors in listeners to avoid UI noise
+      if (error.message.toLowerCase().includes('quota') || error.message.toLowerCase().includes('limit exceeded')) {
+        try { handleFirestoreError(error, OperationType.LIST, 'books'); } catch (e) {}
+        return;
+      }
       handleFirestoreError(error, OperationType.LIST, 'books');
     });
 
@@ -116,20 +130,26 @@ export default function HomeScreen() {
       </div>
 
       {/* Search Bar */}
-      <div className="relative mb-8">
-        <div className="flex items-center border border-[#006A4E] rounded-full bg-white overflow-hidden p-1 pl-4 shadow-sm">
-          <Search className="w-5 h-5 text-gray-400 shrink-0" />
-          <input 
-            type="text" 
-            placeholder="Search for textbooks..." 
-            className="flex-1 bg-transparent border-none outline-none px-2 text-sm text-gray-700 placeholder-gray-400 min-w-0"
-            onClick={() => navigate('/search')}
-          />
-          <button className="bg-[#006A4E] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#005C44] transition-colors shrink-0">
-            Search
-          </button>
+      <div className="relative mb-6">
+        <div className="flex items-center border border-[#006A4E] rounded-full bg-white overflow-hidden p-1 shadow-sm">
+          <div className="flex-1 flex items-center pl-4">
+            <Search className="w-5 h-5 text-gray-400 shrink-0" />
+            <input 
+              type="text" 
+              placeholder="Search for textbooks..." 
+              className="flex-1 bg-transparent border-none outline-none px-2 text-sm text-gray-700 placeholder-gray-400 min-w-0"
+              onClick={() => navigate('/search')}
+            />
+          </div>
+          <div className="flex items-center gap-1 pr-1">
+            <button className="bg-[#006A4E] text-white px-5 py-2 rounded-full text-sm font-medium hover:bg-[#005C44] transition-colors shrink-0">
+              Search
+            </button>
+          </div>
         </div>
       </div>
+
+
 
       {/* Book Categories Filter */}
       <div className="mb-8">

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, deleteBook } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { ArrowLeft, MessageCircle, Star, CheckCircle2, Package } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Star, CheckCircle2, Package, Trash2, Loader2 } from 'lucide-react';
 import BooxieLogo from '../components/BooxieLogo';
 
 export default function BookDetailScreen() {
@@ -14,6 +14,7 @@ export default function BookDetailScreen() {
   const { addToCart } = useCart();
   const [book, setBook] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -89,6 +90,21 @@ export default function BookDetailScreen() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!book || !id) return;
+    if (!window.confirm('Are you sure you want to remove this listing?')) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteBook(id);
+      navigate('/profile');
+    } catch (error) {
+      console.error("Delete failed", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-center font-sans">Loading...</div>;
   }
@@ -108,24 +124,51 @@ export default function BookDetailScreen() {
           <ArrowLeft className="w-6 h-6 text-gray-900" />
         </button>
         <h1 className="text-xl font-bold text-gray-900 truncate max-w-[200px]">{book.title}</h1>
-        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#E8F5F0]">
-          <BooxieLogo className="w-8 h-8" />
+        <div className="flex items-center gap-2">
+          {book && user?.uid === book.sellerId && (
+            <button 
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+            >
+              {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+            </button>
+          )}
+          <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#E8F5F0]">
+            <BooxieLogo className="w-8 h-8" />
+          </div>
         </div>
       </div>
 
       <div className="px-4 pb-6">
         <div className="bg-white rounded-3xl shadow-sm overflow-hidden pb-6">
           {/* Image Section */}
-          <div className="w-full aspect-[4/3] bg-[#006A4E] relative flex items-center justify-center p-4">
+          <div className="w-full bg-[#006A4E] relative flex flex-col items-center justify-center p-4">
             {/* Decorative background shapes */}
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#80B5A6] rounded-tr-full opacity-50"></div>
             <div className="absolute bottom-0 right-0 w-24 h-24 bg-[#80B5A6] rounded-tl-full opacity-50"></div>
             
-            {book.imageUrl ? (
-              <img src={book.imageUrl} alt={book.title} className="w-full h-full object-contain relative z-10 rounded-lg shadow-lg" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="w-full h-full bg-white/20 rounded-lg relative z-10 flex items-center justify-center">
-                <span className="text-white font-medium">No Image</span>
+            <div className="flex gap-4 overflow-x-auto w-full snap-x snap-mandatory hide-scrollbar py-4 relative z-10">
+              <div className="min-w-full flex justify-center snap-center">
+                <div className="relative group">
+                  <img src={book.imageUrl} alt="Front cover" className="h-[300px] w-auto object-contain rounded-xl shadow-2xl border-4 border-white/10" />
+                  <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">Front Cover</div>
+                </div>
+              </div>
+              {book.backCoverUrl && (
+                <div className="min-w-full flex justify-center snap-center">
+                  <div className="relative group">
+                    <img src={book.backCoverUrl} alt="Back cover" className="h-[300px] w-auto object-contain rounded-xl shadow-2xl border-4 border-white/10" />
+                    <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">Back Cover</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {book.backCoverUrl && (
+              <div className="flex gap-1.5 mt-2 relative z-10">
+                <div className="w-1.5 h-1.5 rounded-full bg-white opacity-100"></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-white opacity-40"></div>
               </div>
             )}
           </div>
@@ -239,6 +282,10 @@ export default function BookDetailScreen() {
           </div>
         </div>
       </div>
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 }

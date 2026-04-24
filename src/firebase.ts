@@ -9,7 +9,21 @@ import {
   updateProfile,
   signInAnonymously as firebaseSignInAnonymously
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  deleteDoc,
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -19,7 +33,12 @@ if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === 'TODO
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Initialize Firestore with persistent cache
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+}, firebaseConfig.firestoreDatabaseId);
+
 export const storage = getStorage(app);
 
 export const googleProvider = new GoogleAuthProvider();
@@ -164,6 +183,15 @@ export const logOut = async () => {
   }
 };
 
+export const deleteBook = async (bookId: string) => {
+  try {
+    const bookRef = doc(db, 'books', bookId);
+    await deleteDoc(bookRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `books/${bookId}`);
+  }
+};
+
 export const signInAnonymously = async () => {
   try {
     const result = await firebaseSignInAnonymously(auth);
@@ -205,9 +233,31 @@ export interface FirestoreErrorInfo {
   }
 }
 
+export const quotaState = {
+  isExceeded: false,
+  timestamp: 0,
+  lastError: null as string | null
+};
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const normalizedMsg = errorMessage.toLowerCase();
+  
+  // Specific check for Firestore Spark plan limits
+  const isQuotaError = 
+    normalizedMsg.includes('quota') || 
+    normalizedMsg.includes('limit exceeded') || 
+    normalizedMsg.includes('resource-exhausted') ||
+    normalizedMsg.includes('exceeded its limit');
+  
+  if (isQuotaError) {
+    quotaState.isExceeded = true;
+    quotaState.timestamp = Date.now();
+    quotaState.lastError = errorMessage;
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -224,6 +274,28 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
+
+  if (isQuotaError) {
+    console.warn('Daily database limit reached (Quota Exceeded). Using offline cache.');
+    
+    // Set the state so the UI can show the banner
+    quotaState.isExceeded = true;
+    quotaState.timestamp = Date.now();
+    quotaState.lastError = errorMessage;
+
+    // Return a descriptive error but don't just throw blindly if it's a list/get that can fail silently
+    const userFriendlyError = new Error('Daily database limit reached. Some live updates may be unavailable.');
+    (userFriendlyError as any).isQuota = true;
+    (userFriendlyError as any).details = errInfo;
+    
+    // If it's a LIST or GET, we might want to just warn and let the cache handle it
+    if (operationType === OperationType.LIST || operationType === OperationType.GET) {
+      return; 
+    }
+
+    throw userFriendlyError;
+  }
+
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }

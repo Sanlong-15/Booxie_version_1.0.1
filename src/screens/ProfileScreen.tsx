@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { logOut } from '../firebase';
-import { Settings, LogOut, Package, Heart, Star, Award, MessageCircle } from 'lucide-react';
+import { logOut, db, deleteBook, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { Settings, LogOut, Package, Heart, Star, Award, MessageCircle, Trash2, Loader2, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 const ORDER_TABS = ['Orders', 'Listing', 'Coupon'];
 
@@ -10,6 +12,75 @@ export default function ProfileScreen() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Orders');
+  const [userBooks, setUserBooks] = useState<any[]>([]);
+  const [isLoadingBooks, setIsLoadingBooks] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'Listing' && user) {
+      fetchUserBooks();
+    }
+  }, [activeTab, user]);
+
+  const fetchUserBooks = async () => {
+    if (!user) return;
+    setIsLoadingBooks(true);
+    try {
+      // Simplified query to avoid requiring composite indexes in dev environment
+      const q = query(
+        collection(db, 'books'),
+        where('sellerId', '==', user.uid)
+      );
+      const querySnapshot = await getDocs(q);
+      let books = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Sort in memory instead of Firestore to avoid composite index requirements
+      books.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      });
+
+      setUserBooks(books);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, 'books');
+    } finally {
+      setIsLoadingBooks(false);
+    }
+  };
+
+  const handleCleanUp = async () => {
+    if (userBooks.length === 0) return;
+    if (!window.confirm(`Clean up oldest 4 books to free up data space?`)) return;
+    
+    setIsLoadingBooks(true);
+    const booksToDelete = [...userBooks].reverse().slice(0, 4);
+    
+    for (const book of booksToDelete) {
+      try {
+        await deleteBook(book.id);
+      } catch (err) {
+        console.error("Cleanup individual delete failed", err);
+      }
+    }
+    
+    await fetchUserBooks();
+  };
+
+  const handleDeleteBook = async (e: React.MouseEvent, bookId: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to remove this listing?')) return;
+    
+    setIsDeleting(bookId);
+    try {
+      await deleteBook(bookId);
+      setUserBooks(prev => prev.filter(b => b.id !== bookId));
+    } catch (error) {
+      console.error("Delete failed", error);
+    } finally {
+      setIsDeleting(null);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -209,8 +280,94 @@ export default function ProfileScreen() {
             </div>
           )}
           {activeTab === 'Listing' && (
-            <div className="text-center py-8 text-gray-400">
-              <p className="text-sm">No active listings.</p>
+            <div className="space-y-4">
+              {userBooks.length > 0 && (
+                <div className="flex justify-between items-center bg-amber-50 p-3 rounded-2xl border border-amber-100">
+                   <div className="flex items-center gap-2">
+                     <Trash2 className="w-4 h-4 text-amber-600" />
+                     <div>
+                       <p className="text-[10px] font-bold text-amber-900">Database Optimizer</p>
+                       <p className="text-[9px] text-amber-700">Remove old books to help with limits</p>
+                     </div>
+                   </div>
+                   <button 
+                     onClick={handleCleanUp}
+                     disabled={isLoadingBooks}
+                     className="bg-amber-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm"
+                   >
+                     Clean Up (4)
+                   </button>
+                </div>
+              )}
+              {isLoadingBooks ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-[#006A4E] animate-spin mb-2" />
+                  <p className="text-xs text-gray-500">Loading your listings...</p>
+                </div>
+              ) : userBooks.length > 0 ? (
+                <AnimatePresence>
+                  {userBooks.map(book => (
+                    <motion.div 
+                      key={book.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative group overflow-hidden"
+                    >
+                      <div 
+                        onClick={() => navigate(`/book/${book.id}`)}
+                        className="flex gap-4 items-center text-left w-full cursor-pointer"
+                      >
+                        <div className="w-16 h-24 bg-gray-100 rounded-lg overflow-hidden shrink-0 border border-gray-200">
+                          {book.imageUrl ? (
+                            <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                              <Package className="w-6 h-6 text-gray-300" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 pr-8">
+                          <h4 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight">{book.title}</h4>
+                          <p className="text-xs text-gray-500 mt-1">{book.author}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                             <p className="text-base font-bold text-[#006A4E]">{book.price}$</p>
+                             <span className="text-[10px] bg-[#E8F5E9] text-[#006A4E] px-2 py-0.5 rounded-full font-medium">{book.condition}</span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300" />
+                      </div>
+                      
+                      {/* Delete Button */}
+                      <button 
+                        onClick={(e) => handleDeleteBook(e, book.id)}
+                        disabled={isDeleting === book.id}
+                        className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                      >
+                        {isDeleting === book.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              ) : (
+                <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-gray-200">
+                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Package className="w-8 h-8 text-gray-300" />
+                  </div>
+                  <p className="text-sm font-bold text-gray-900">No active listings</p>
+                  <p className="text-xs text-gray-500 mt-1 max-w-[200px] mx-auto">Items you list for sale will appear here for you to manage.</p>
+                  <button 
+                    onClick={() => navigate('/sell')}
+                    className="mt-6 px-6 py-2 bg-[#006A4E] text-white text-xs font-bold rounded-full shadow-lg shadow-[#006A4E]/20"
+                  >
+                    Start Selling
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {activeTab === 'Coupon' && (

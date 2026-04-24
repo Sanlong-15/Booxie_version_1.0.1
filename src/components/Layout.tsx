@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Plus, Users, User as UserIcon, Bell, MessageCircle, Gift, Star } from 'lucide-react';
+import { Home, Search, Plus, Users, User as UserIcon, Bell, MessageCircle, Gift, Star, Camera } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import BooxieLogo from './BooxieLogo';
+import QuotaWarning from './QuotaWarning';
 
 export default function Layout() {
   const { user, profile } = useAuth();
@@ -25,6 +26,7 @@ export default function Layout() {
 
   return (
     <div className="h-full h-dvh bg-[#F8FCF9] flex flex-col md:max-w-md md:mx-auto md:shadow-2xl relative overflow-hidden font-sans w-full">
+      <QuotaWarning />
       {/* Header */}
       {shouldShowHeader && (
         <header className="bg-[#F8FCF9] px-4 py-3 flex items-center justify-between z-50 relative shrink-0">
@@ -124,7 +126,7 @@ export default function Layout() {
         <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 flex justify-between items-center z-20 pb-safe md:max-w-md md:mx-auto">
           <NavItem to="/" icon={<Home className="w-6 h-6" />} label="Home" />
           <NavItem to="/search" icon={<Search className="w-6 h-6" />} label="Search" />
-          <NavItem to="/sell" icon={<div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center"><Plus className="w-4 h-4" /></div>} label="Sell" />
+          <NavItem to="/sell" icon={<div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center -mt-1"><Camera className="w-3.5 h-3.5" /></div>} label="Scan" />
           <NavItem to="/community" icon={<Users className="w-6 h-6" />} label="Community" />
           <NavItem to="/profile" icon={<UserIcon className="w-6 h-6" />} label="Profile" />
         </nav>

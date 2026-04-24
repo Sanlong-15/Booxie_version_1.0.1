@@ -63,9 +63,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
           }
           setLoading(false);
-        }, (error) => {
-          console.error("AuthContext: Profile listener error", error);
+        }, (error: any) => {
+          console.warn("AuthContext: Profile listener error (likely quota limit reached)", error.message);
+          
+          // If we hit quota, try to at least set a basic profile from what we know
+          setProfile(prev => prev || {
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || 'Alex (Offline)',
+            role: 'user',
+            rewardPoints: 0,
+            isOffline: true
+          });
           setLoading(false);
+          
+          // Still register the error for the global warning
+          try { handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`); } catch(e) {}
         });
       } else {
         if (unsubscribeProfile) unsubscribeProfile();
