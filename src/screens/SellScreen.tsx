@@ -117,7 +117,7 @@ export default function SellScreen() {
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Analyze this book front cover. Extract: title, author, description, ISBN, and suggested price (3-9 USD). Be extremely detail-oriented. If the image is blurry, do your best to infer the title. Return ONLY a JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "isbn": string, "price": number}. If no book is visible, return {"detected": false}.' },
+              { text: 'Analyze this book front cover image. You are an expert librarian. Extract precisely: \n- title (full name)\n- author (full name)\n- description (a compelling 2-3 sentence summary based on visual cues)\n- ISBN (if visible, 10 or 13 digits)\n- suggested price (integer or two-decimal number in USD, typical second-hand market value 2.00-15.00)\n\nReturn ONLY a valid JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "isbn": string, "price": number}. If no book cover is clearly visible, return {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -154,7 +154,7 @@ export default function SellScreen() {
           model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Look for a book back cover. If you see an ISBN barcode or numeric code (usually 10 or 13 digits), extract it. Return ONLY JSON: {"detected": boolean, "isbn": string}. If nothing is detected, return {"detected": false}.' },
+              { text: 'Analyze this book back cover image. Look for barcodes, ISBN numbers (10 or 13 digits, often starting with 978 or 979), and blurbs. \n\nReturn ONLY JSON: {"detected": boolean, "isbn": string, "summary": string}. If nothing is detected, return {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -169,10 +169,13 @@ export default function SellScreen() {
             setShowSuccessFlash(true);
             setTimeout(() => setShowSuccessFlash(false), 500);
 
-            // Update ISBN if found on back and not already present
+            // Update data from back scan
             const updatedFrontData = { ...frontCoverData };
             if (data.isbn && !updatedFrontData.isbn) {
               updatedFrontData.isbn = data.isbn;
+            }
+            if (data.summary && (!updatedFrontData.description || updatedFrontData.description.length < 20)) {
+              updatedFrontData.description = data.summary;
             }
 
             setBackCoverImage(imageSrc);

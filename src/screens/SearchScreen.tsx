@@ -22,6 +22,7 @@ interface BookListing {
 
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [allBooks, setAllBooks] = useState<BookListing[]>([]);
   const [results, setResults] = useState<BookListing[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -29,9 +30,18 @@ export default function SearchScreen() {
   const navigate = useNavigate();
   const { addToCart } = useCart();
 
+  const getRatingInfo = (condition: string) => {
+    const cond = condition.toLowerCase().replace('-', ' ');
+    if (cond === 'new') return { stars: 5, rating: 5.0 };
+    if (cond === 'like new') return { stars: 5, rating: 4.8 };
+    if (cond === 'good') return { stars: 5, rating: 4.5 };
+    if (cond === 'normal' || cond === 'used') return { stars: 4, rating: 4.0 };
+    return { stars: 5, rating: 4.5 };
+  };
+
   useEffect(() => {
-    // Fetch real data on mount
-    const fetchInitialData = async () => {
+    // Fetch all available books initially
+    const fetchAllData = async () => {
       setIsSearching(true);
       try {
         const q = query(collection(db, 'books'), where('status', '==', 'available'));
@@ -40,6 +50,7 @@ export default function SearchScreen() {
           id: doc.id,
           ...doc.data()
         })) as BookListing[];
+        setAllBooks(booksData);
         setResults(booksData);
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, 'books');
@@ -47,51 +58,84 @@ export default function SearchScreen() {
         setIsSearching(false);
       }
     };
-    fetchInitialData();
+    fetchAllData();
   }, []);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    
-    setIsSearching(true);
-    
-    try {
-      const q = query(collection(db, 'books'), where('status', '==', 'available'));
-      const querySnapshot = await getDocs(q);
-      
-      const booksData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as BookListing[];
+  useEffect(() => {
+    // Client-side filtering logic
+    let filtered = [...allBooks];
 
-      if (!searchQuery.trim()) {
-        setResults(booksData);
-      } else {
-        const lowerQuery = searchQuery.toLowerCase();
-        const filtered = booksData.filter(book => 
-          book.title.toLowerCase().includes(lowerQuery) || 
-          book.author.toLowerCase().includes(lowerQuery)
-        );
-        setResults(filtered);
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, 'books');
-    } finally {
-      setIsSearching(false);
+    // Search Query Filter
+    if (searchQuery.trim()) {
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter(book => 
+        book.title.toLowerCase().includes(lowerQuery) || 
+        book.author.toLowerCase().includes(lowerQuery)
+      );
     }
+
+    // Dropdown Filters
+    Object.entries(selectedFilters).forEach(([filter, val]) => {
+      if (filter === 'Category') {
+        if (val === 'Donation') {
+          filtered = filtered.filter(b => b.type === 'donation');
+        } else {
+          filtered = filtered.filter((b: any) => 
+            (b.category === val) || 
+            (val === 'Textbooks' && b.category === 'Textbook')
+          );
+        }
+      } else if (filter === 'Grade') {
+        filtered = filtered.filter((b: any) => b.grade === val);
+      } else if (filter === 'Condition') {
+        const target = val.toLowerCase().replace('-', ' ');
+        filtered = filtered.filter(b => b.condition?.toLowerCase().replace('-', ' ') === target);
+      } else if (filter === 'Price') {
+        if (val === '0.5-5$') {
+          filtered = filtered.filter(b => {
+             const p = (b as any).price;
+             return p >= 0.5 && p <= 5;
+          });
+        } else if (val === '6-10$') {
+          filtered = filtered.filter(b => {
+             const p = (b as any).price;
+             return p >= 6 && p <= 10;
+          });
+        } else if (val === '10$<') {
+          filtered = filtered.filter(b => {
+             const p = (b as any).price;
+             return p > 10;
+          });
+        }
+      } else if (filter === 'Set') {
+        filtered = filtered.filter((b: any) => 
+          val === 'Set' ? b.isSet === true : (b.isSet === false || !b.isSet)
+        );
+      }
+    });
+
+    setResults(filtered);
+  }, [selectedFilters, searchQuery, allBooks]);
+
+  const bookPrice = (book: any) => {
+    return book.price || 0;
+  };
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    // Re-filtering is already handled by the useEffect watching searchQuery
   };
 
   const filterOptions = {
     Category: ['Donation', 'Textbooks', 'Grade 12', 'Grade 9', 'Exam Paper', 'Science', 'Social Study', 'English', 'Novels'],
     Grade: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'University'],
-    Condition: ['Like new', 'Good', 'Normal'],
+    Condition: ['New', 'Like new', 'Good', 'Normal'],
     Price: ['0.5-5$', '6-10$', '10$<'],
     Set: ['Set', 'Single']
   };
 
-  const handleFilterSelect = async (filter: string, option: string) => {
+  const handleFilterSelect = (filter: string, option: string) => {
     setActiveDropdown(null);
-    setIsSearching(true);
     
     // Toggle filter: if same option selected again, clear it
     const newFilters = { ...selectedFilters };
@@ -101,37 +145,6 @@ export default function SearchScreen() {
       newFilters[filter] = option;
     }
     setSelectedFilters(newFilters);
-    
-    try {
-      let q = query(collection(db, 'books'), where('status', '==', 'available'));
-      
-      // Apply all active filters
-      Object.entries(newFilters).forEach(([f, val]) => {
-        if (f === 'Condition') {
-          q = query(q, where('condition', '==', val.toLowerCase().replace(' ', '-')));
-        } else if (f === 'Category') {
-          if (val === 'Donation') {
-            q = query(q, where('type', '==', 'donation'));
-          } else {
-            q = query(q, where('category', '==', val));
-          }
-        } else if (f === 'Grade') {
-           q = query(q, where('grade', '==', val));
-        }
-      });
-      
-      const querySnapshot = await getDocs(q);
-      const booksData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as BookListing[];
-      
-      setResults(booksData);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, 'books');
-    } finally {
-      setIsSearching(false);
-    }
   };
 
   return (
@@ -302,10 +315,15 @@ export default function SearchScreen() {
                       {book.condition || 'Good'}
                     </span>
                     <div className="flex items-center gap-0.5 ml-auto">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
-                      ))}
-                      <span className="text-[8px] text-gray-500 ml-0.5">({(book.rating || 4.5).toFixed(1)})</span>
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((starIdx) => (
+                          <Star 
+                            key={starIdx} 
+                            className={`w-2.5 h-2.5 ${starIdx <= Math.ceil(getRatingInfo(book.condition).rating) ? 'text-[#FFB800] fill-[#FFB800]' : 'text-gray-200'}`} 
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[8px] text-gray-500 ml-0.5">({getRatingInfo(book.condition).rating.toFixed(1)})</span>
                     </div>
                   </div>
                   

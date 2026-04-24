@@ -76,7 +76,7 @@ export default function HomeScreen() {
         return dateB - dateA;
       });
 
-      setBooks(booksData.slice(0, 8)); // Show a subset after sorting
+    setBooks(booksData.slice(0, 6)); // Show a subset after sorting (3 rows of 2)
     }, (error: any) => {
       console.warn("HomeScreen: Firestore status listener error", error.message);
       // Suppress the big JSON throw for quota errors in listeners to avoid UI noise
@@ -89,6 +89,15 @@ export default function HomeScreen() {
 
     return () => unsubscribe();
   }, [user, selectedGenre]);
+
+  const getRatingInfo = (condition: string) => {
+    const cond = condition.toLowerCase().replace('-', ' ');
+    if (cond === 'new') return { stars: 5, rating: 5.0 };
+    if (cond === 'like new') return { stars: 5, rating: 4.8 };
+    if (cond === 'good') return { stars: 5, rating: 4.5 };
+    if (cond === 'normal' || cond === 'used') return { stars: 4, rating: 4.0 };
+    return { stars: 5, rating: 4.5 };
+  };
 
   const toggleFavorite = async (e: React.MouseEvent, bookId: string) => {
     e.stopPropagation();
@@ -149,8 +158,6 @@ export default function HomeScreen() {
         </div>
       </div>
 
-
-
       {/* Book Categories Filter */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
@@ -183,11 +190,7 @@ export default function HomeScreen() {
           <h3 className="font-bold text-gray-900">
             {selectedGenre === 'All' ? 'Best-selling books' : `${selectedGenre} Picks`}
           </h3>
-          {books.length > 0 && (
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-2 py-0.5 rounded">
-              {books.length} RESULTS
-            </span>
-          )}
+          <button onClick={() => navigate('/search')} className="text-[#006A4E] text-sm font-medium">View all</button>
         </div>
         
         {books.length === 0 && selectedGenre !== 'All' ? (
@@ -207,64 +210,79 @@ export default function HomeScreen() {
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <AnimatePresence>
-              {displayBooks.map((book, idx) => (
-                <motion.div 
-                  key={book.id} 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={() => navigate(`/book/${book.id}`)}
-                  className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow flex flex-col relative"
-                >
-                  <button 
-                    onClick={(e) => toggleFavorite(e, book.id)}
-                    className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm"
+              {displayBooks.map((book, idx) => {
+                const { rating } = getRatingInfo(book.condition);
+                return (
+                  <motion.div 
+                    key={book.id} 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.05 }}
+                    onClick={() => navigate(`/book/${book.id}`)}
+                    className="bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-all group"
                   >
-                    <Heart className={`w-4 h-4 ${favorites.includes(book.id) ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} />
-                  </button>
-                  
-                  <div className="aspect-[3/4] w-full bg-gray-50 rounded-xl mb-3 overflow-hidden shrink-0">
-                    {book.imageUrl ? (
-                      <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <BookOpen className="w-8 h-8 text-gray-300" />
+                    {/* Image Container */}
+                    <div className="relative aspect-square bg-[#F3F4F6] shrink-0 p-2">
+                      {book.imageUrl ? (
+                        <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <BookOpen className="w-8 h-8 text-gray-300" />
+                        </div>
+                      )}
+                      <button 
+                        onClick={(e) => toggleFavorite(e, book.id)}
+                        className="absolute top-3 right-3 z-10 w-8 h-8 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm"
+                      >
+                        <Heart className={`w-4 h-4 ${favorites.includes(book.id) ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} />
+                      </button>
+                    </div>
+                    
+                    <div className="p-3 flex flex-col flex-1">
+                      <h4 className="font-bold text-gray-900 text-[13px] line-clamp-1 mb-2 leading-tight">{book.title}</h4>
+                      
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] font-medium text-gray-600 bg-white border border-gray-200 px-2.5 py-0.5 rounded-md shadow-sm capitalize">
+                          {book.condition}
+                        </span>
+                        <div className="flex items-center gap-0.5 ml-auto">
+                          <div className="flex items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map((starIdx) => (
+                              <Star 
+                                key={starIdx} 
+                                className={`w-2.5 h-2.5 ${starIdx <= Math.ceil(rating) ? 'text-[#FFB800] fill-[#FFB800]' : 'text-gray-200'}`} 
+                              />
+                            ))}
+                          </div>
+                          <span className="text-[10px] text-gray-500 font-bold ml-0.5">({rating.toFixed(1)})</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  
-                  <h4 className="font-medium text-gray-900 text-sm line-clamp-2 mb-1 leading-tight h-10">{book.title}</h4>
-                  <p className="text-[10px] text-gray-400 mb-2 line-clamp-1 italic">{book.author}</p>
-                  
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] text-booxie-green font-bold bg-booxie-green/5 px-1.5 py-0.5 rounded capitalize">
-                      {book.condition}
-                    </span>
-                    <div className="flex items-center gap-0.5">
-                      <Star className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
-                      <span className="text-[10px] text-gray-500 font-bold ml-0.5">5.0</span>
+                      
+                      <div className="mt-auto">
+                        <div className="flex items-end gap-1.5 mb-3">
+                          <span className="font-bold text-[#006A4E] text-base">
+                            {book.price}$
+                          </span>
+                          <span className="text-[10px] text-red-400 line-through mb-0.5">
+                            {(book.price * 1.5).toFixed(1)}$
+                          </span>
+                        </div>
+                        
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart({ ...book, originalPrice: book.price * 1.5 });
+                            navigate('/cart');
+                          }}
+                          className="w-full bg-[#006A4E] text-white text-[11px] font-bold py-2.5 rounded-xl hover:bg-[#005C44] transition-colors shadow-sm active:scale-95 duration-200"
+                        >
+                          Add to Cart
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="mt-auto flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-[#006A4E] text-sm leading-tight">
-                        ${book.price}
-                      </span>
-                    </div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addToCart({ ...book, originalPrice: book.price * 1.5 });
-                        navigate('/cart');
-                      }}
-                      className="bg-[#006A4E] text-white text-[10px] font-bold p-2 px-3 rounded-xl hover:bg-[#005C44] transition-colors shadow-sm"
-                    >
-                      Buy
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
         )}

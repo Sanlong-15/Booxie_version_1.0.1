@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType, deleteBook } from '../firebase';
+import { db, handleFirestoreError, OperationType, deleteBook, signInAnonymously } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { ArrowLeft, MessageCircle, Star, CheckCircle2, Package, Trash2, Loader2 } from 'lucide-react';
@@ -37,11 +37,38 @@ export default function BookDetailScreen() {
   }, [id]);
 
   const handleContactSeller = async () => {
-    // Current identity: either firebase user or guest profile
-    const currentUserId = user?.uid || profile?.uid || 'guest-demo-id';
-    const currentUserName = user?.displayName || profile?.name || 'Alex (Guest)';
-    
     if (!book) return;
+
+    let currentUserId = user?.uid;
+    let currentUserName = user?.displayName || profile?.name;
+    
+    // If guest, upgrade to anonymous auth to allow firestore writes
+    if (!currentUserId && !profile?.uid) {
+      try {
+        const anonymousUser = await signInAnonymously();
+        currentUserId = anonymousUser.uid;
+        currentUserName = 'Guest Reader';
+      } catch (err) {
+        console.error("Anonymous sign in failed", err);
+        navigate('/login', { state: { message: "Please log in to chat with sellers" } });
+        return;
+      }
+    } else if (!currentUserId && profile?.uid === 'local-guest') {
+       // Profile exists but it's a local guest literal, needs real auth
+       try {
+        const anonymousUser = await signInAnonymously();
+        currentUserId = anonymousUser.uid;
+        currentUserName = profile.name || 'Guest Reader';
+      } catch (err) {
+        navigate('/login', { state: { message: "Please log in to chat with sellers" } });
+        return;
+      }
+    }
+    
+    if (!currentUserId) {
+      navigate('/login');
+      return;
+    }
 
     try {
       // Look for existing conversation between these two for this book
@@ -65,10 +92,10 @@ export default function BookDetailScreen() {
         const convRef = await addDoc(collection(db, 'conversations'), {
           participants: [currentUserId, book.sellerId],
           participantNames: {
-            [currentUserId]: currentUserName,
+            [currentUserId]: currentUserName || 'Guest Reader',
             [book.sellerId]: book.sellerName || 'Seller'
           },
-          bookId: book.id || 'demo-id',
+          bookId: book.id || 'id-unknown',
           bookTitle: book.title,
           updatedAt: serverTimestamp(),
           lastMessage: '',
@@ -78,8 +105,12 @@ export default function BookDetailScreen() {
       }
     } catch (error) {
       console.error("Chat initiation error:", error);
-      // Fallback for demo if firestore write fails
-      navigate('/chat/demo-conversation');
+      // Fallback if firestore write actually fails due to rules
+      if (profile?.isDemo) {
+        navigate('/chat/demo-conversation');
+      } else {
+        handleFirestoreError(error, OperationType.CREATE, 'conversations');
+      }
     }
   };
 
@@ -178,16 +209,29 @@ export default function BookDetailScreen() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">{book.title}</h2>
             
             <div className="flex items-center gap-3 mb-3">
-              <span className="text-xs font-medium text-gray-700 border border-gray-300 px-2 py-0.5 rounded">
+              <span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm border ${
+                book.condition?.toLowerCase().replace('-', ' ') === 'new' 
+                  ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                  : book.condition?.toLowerCase().replace('-', ' ') === 'like new'
+                  ? 'bg-blue-50 text-blue-600 border-blue-100'
+                  : book.condition?.toLowerCase().replace('-', ' ') === 'good'
+                  ? 'bg-amber-50 text-amber-600 border-amber-100'
+                  : 'bg-gray-50 text-gray-600 border-gray-100'
+              }`}>
                 {book.condition || 'Good'}
               </span>
               <div className="flex items-center gap-1">
                 <div className="flex">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                  ))}
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const cond = book.condition?.toLowerCase().replace('-', ' ') || 'good';
+                    const rating = cond === 'new' ? 5 : cond === 'like new' ? 4.8 : cond === 'good' ? 4.5 : 4;
+                    const fill = star <= Math.floor(rating) ? 'fill-yellow-400 text-yellow-400' : star === Math.ceil(rating) && rating % 1 !== 0 ? 'fill-yellow-400/50 text-yellow-400' : 'text-gray-200';
+                    return <Star key={star} className={`w-3.5 h-3.5 ${fill}`} />;
+                  })}
                 </div>
-                <span className="text-xs text-gray-500">(4.5)</span>
+                <span className="text-xs text-gray-500 font-bold">
+                  ({(book.condition?.toLowerCase().replace('-', ' ') === 'new' ? 5.0 : book.condition?.toLowerCase().replace('-', ' ') === 'like new' ? 4.8 : book.condition?.toLowerCase().replace('-', ' ') === 'good' ? 4.5 : 4.0).toFixed(1)})
+                </span>
               </div>
             </div>
 
